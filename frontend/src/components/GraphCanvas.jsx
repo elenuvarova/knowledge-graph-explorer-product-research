@@ -104,6 +104,12 @@ function buildElements(nodes, edges) {
   return els
 }
 
+// Respect the user's motion preference: disable Cytoscape physics animation and
+// cy.animate() calls when prefers-reduced-motion is active (WCAG 2.3.3 / M-1).
+const prefersReducedMotion =
+  typeof window !== 'undefined' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
 export default function GraphCanvas({
   nodes = [], edges = [], theme = 'dark',
   selectedId, onNodeClick, onCyInit,
@@ -124,8 +130,8 @@ export default function GraphCanvas({
     cy._highlightedCluster = null
     if (onCyInit) onCyInit(cy)
 
-    // Initial physics layout.
-    cy.layout(COLA).run()
+    // Initial physics layout. Disable animation when user prefers reduced motion.
+    cy.layout({ ...COLA, animate: !prefersReducedMotion }).run()
 
     // Select / inspect a node.
     cy.on('tap', 'node', (evt) => { if (onNodeClick) onNodeClick(evt.target.data()) })
@@ -140,7 +146,7 @@ export default function GraphCanvas({
 
     // Double-tap empty space → re-fit the whole graph.
     cy.on('dbltap', (evt) => {
-      if (evt.target === cy) cy.animate({ fit: { padding: 48 }, duration: 400 })
+      if (evt.target === cy) cy.animate({ fit: { padding: 48 }, duration: prefersReducedMotion ? 0 : 400 })
     })
 
     // Hover → focus a node's neighbourhood (disabled while a cluster is pinned).
@@ -157,11 +163,11 @@ export default function GraphCanvas({
     // Drag → live physics so connected nodes follow like rubber bands; settle on
     // drop. Triggered on the first real drag movement (not a plain click) so
     // simply selecting a node never disturbs the layout.
+    // Disabled under prefers-reduced-motion to avoid continuous animation (M-1).
     cy.on('drag', 'node', () => {
-      if (!liveLayout.current) {
-        liveLayout.current = cy.layout({ ...COLA, infinite: true, fit: false })
-        liveLayout.current.run()
-      }
+      if (prefersReducedMotion || liveLayout.current) return
+      liveLayout.current = cy.layout({ ...COLA, infinite: true, fit: false })
+      liveLayout.current.run()
     })
     cy.on('free', 'node', () => {
       if (liveLayout.current) { liveLayout.current.stop(); liveLayout.current = null }
@@ -185,17 +191,33 @@ export default function GraphCanvas({
   // Stop the live layout if the component unmounts mid-drag.
   useEffect(() => () => { if (liveLayout.current) liveLayout.current.stop() }, [])
 
+  const nodeCount = nodes.length
+  const edgeCount = edges.length
+
   return (
-    <CytoscapeComponent
-      elements={elements}
-      stylesheet={initialStylesheet}
-      layout={presetLayout}
-      cy={handleCy}
-      className="cytoscape-container"
+    // role="img" gives the canvas an accessible name and announces it as a graphic.
+    // Full keyboard node-navigation (roving tabindex within Cytoscape) is a planned
+    // follow-up; until then, the Clusters and Entity panels offer equivalent data.
+    <div
+      role="img"
+      aria-label={`Knowledge graph: ${nodeCount} nodes, ${edgeCount} connections. Use the Clusters tab or click a node to inspect entities.`}
       style={{ width: '100%', height: '100%' }}
-      minZoom={0.2}
-      maxZoom={2.5}
-      boxSelectionEnabled={false}
-    />
+    >
+      <p className="sr-only">
+        This is an interactive force-directed graph showing {nodeCount} entities and {edgeCount} relationships.
+        Use the Clusters tab in the sidebar to explore groups of related nodes, or the Ask tab to query the graph.
+      </p>
+      <CytoscapeComponent
+        elements={elements}
+        stylesheet={initialStylesheet}
+        layout={presetLayout}
+        cy={handleCy}
+        className="cytoscape-container"
+        style={{ width: '100%', height: '100%' }}
+        minZoom={0.2}
+        maxZoom={2.5}
+        boxSelectionEnabled={false}
+      />
+    </div>
   )
 }

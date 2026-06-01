@@ -17,10 +17,14 @@ export default function ClusterPanel({ clusters = [], activeClusterId, onCluster
     <div className="cluster-panel">
       <h3>Clusters · {clusters.length}</h3>
       {clusters.map((c) => (
-        <div
+        // <button> gives keyboard operability and role=button for free (C-2, WCAG 2.1.1)
+        <button
           key={c.id}
+          type="button"
           className={`cluster-item${activeClusterId === c.cluster_id ? ' active' : ''}`}
           onClick={() => onClusterClick(c.cluster_id)}
+          aria-pressed={activeClusterId === c.cluster_id}
+          aria-label={`${c.name} — ${c.size} nodes, opportunity score ${(c.opportunity_score || 0).toFixed(2)}`}
         >
           <div className="cluster-name">{c.name}</div>
           <div className="cluster-stats">
@@ -31,7 +35,7 @@ export default function ClusterPanel({ clusters = [], activeClusterId, onCluster
           <div className="cluster-bar">
             <div className="cluster-bar-fill" style={{ width: `${(c.opportunity_score / maxScore) * 100}%` }} />
           </div>
-        </div>
+        </button>
       ))}
       {activeClusterId && <p className="cluster-hint">Click the active cluster again to deselect.</p>}
     </div>

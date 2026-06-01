@@ -135,14 +135,24 @@ export default function HomePage() {
         <div className="recent-projects">
           <h2>Recent projects</h2>
           {projects.map((p) => (
-            <div key={p.id} className="project-row" onClick={() => navigate(`/project/${p.id}`)}>
-              <span className="project-row-name">{p.topic}</span>
-              <span className="project-row-meta">{p.region}</span>
-              <StatusBadge status={p.status} />
+            // Row is an inert container; the main area is a keyboard-operable button
+            // and the delete is a sibling button — avoids button-in-interactive-div (C-2).
+            <div key={p.id} className="project-row">
               <button
+                type="button"
+                className="project-row-main"
+                onClick={() => navigate(`/project/${p.id}`)}
+                aria-label={`Open project: ${p.topic}`}
+              >
+                <span className="project-row-name">{p.topic}</span>
+                <span className="project-row-meta">{p.region}</span>
+                <StatusBadge status={p.status} />
+              </button>
+              <button
+                type="button"
                 className="btn btn-danger btn-sm"
                 disabled={deleteMutation.isPending}
-                onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(p.id) }}
+                onClick={() => deleteMutation.mutate(p.id)}
                 aria-label={`Delete ${p.topic}`}
               >✕</button>
             </div>

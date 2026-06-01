@@ -139,9 +139,10 @@ export function BuildingScreen() {
   }, [])
 
   return (
-    <div className="build-screen">
+    // role="status" / aria-live="polite" announces build progress to screen readers (S-5)
+    <div className="build-screen" role="status" aria-live="polite" aria-atomic="false">
       <div className="build-screen-head">
-        <div className="spinner" />
+        <div className="spinner" aria-hidden="true" />
         <div className="build-title">Building your knowledge graph</div>
         <div className="build-subtitle">Pulling open data and mapping the domain</div>
       </div>
