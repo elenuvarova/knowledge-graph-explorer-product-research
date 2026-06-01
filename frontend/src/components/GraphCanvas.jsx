@@ -152,7 +152,16 @@ export default function GraphCanvas({
     cy._highlightedCluster = null
     if (onCyInit) onCyInit(cy)
 
-    cy.layout({ ...COLA, animate: !prefersReducedMotion }).run()
+    // Phase 1: settle nodes into position (finite, fits viewport).
+    // Phase 2: once settled, switch to infinite physics so nodes stay alive
+    // even without user interaction. Skipped under prefers-reduced-motion.
+    const bootLayout = cy.layout({ ...COLA, animate: !prefersReducedMotion })
+    bootLayout.one('layoutstop', () => {
+      if (prefersReducedMotion) return
+      liveLayout.current = cy.layout(COLA_LIVE)
+      liveLayout.current.run()
+    })
+    bootLayout.run()
 
     cy.on('tap', 'node', (evt) => { onNodeClickRef.current?.(evt.target.data()) })
 
@@ -183,18 +192,7 @@ export default function GraphCanvas({
       clearTimeout(hoverTimer)
       cy.batch(() => cy.elements().removeClass('faded'))
     })
-    // Grab → start infinite physics so connected nodes follow like rubber bands.
-    // Uses grab (fires once on mousedown) not drag (fires on every mousemove),
-    // so there's no need for a re-entry guard and no repeated layout restarts.
-    // Disabled under prefers-reduced-motion (M-1).
-    cy.on('grab', 'node', () => {
-      if (prefersReducedMotion) return
-      liveLayout.current = cy.layout(COLA_LIVE)
-      liveLayout.current.run()
-    })
-    cy.on('free', 'node', () => {
-      if (liveLayout.current) { liveLayout.current.stop(); liveLayout.current = null }
-    })
+    // No grab/free handlers needed — COLA_LIVE runs continuously after boot.
   }, [onCyInit])
 
   // Stop live layout if the component unmounts while a node is being dragged.
