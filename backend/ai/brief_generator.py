@@ -23,18 +23,17 @@ def generate_brief(project, entities, clusters, opportunities) -> str:
     entities_text = "\n".join(
         f"- **{e.name}** ({e.type})"
         + (f": {e.description[:120]}" if e.description else "")
-        + f" — degree {e.degree:.3f}, bridge {e.bridge_score:.3f}"
+        + f" — degree {(e.degree or 0):.3f}, bridge {(e.bridge_score or 0):.3f}"
         for e in top_entities
     )
 
     clusters_text = "\n".join(
-        f"- **{c.name}**: {c.size} nodes, {c.research_count} research items, score {c.opportunity_score:.3f}"
+        f"- **{c.name}**: {c.size} nodes, {c.research_count} research items, score {(c.opportunity_score or 0):.3f}"
         for c in top_clusters
     )
 
-    import json as _json
     opps_text = "\n\n".join(
-        f"**{o.title}** (score {o.score:.3f}, {o.risk_level} risk)\n{o.why_it_matters}"
+        f"**{o.title}** (score {(o.score or 0):.3f}, {o.risk_level} risk)\n{o.why_it_matters}"
         for o in top_opps
     )
 
@@ -68,7 +67,7 @@ def generate_brief(project, entities, clusters, opportunities) -> str:
     if api_key:
         try:
             from groq import Groq
-            client = Groq(api_key=api_key)
+            client = Groq(api_key=api_key, timeout=20.0)
             response = client.chat.completions.create(
                 model=_MODEL,
                 max_tokens=2048,
@@ -89,17 +88,17 @@ def _template_brief(project, top_entities, clusters, top_opps) -> str:
     today = date.today().strftime("%B %d, %Y")
 
     entity_rows = "\n".join(
-        f"| {e.name} | {e.type} | degree {e.degree:.3f} |"
+        f"| {e.name} | {e.type} | degree {(e.degree or 0):.3f} |"
         for e in top_entities[:8]
     )
 
     clusters_section = "\n".join(
-        f"\n### {c.name}\n{c.size} nodes · {c.research_count} research items · opportunity score {c.opportunity_score:.3f}"
+        f"\n### {c.name}\n{c.size} nodes · {c.research_count} research items · opportunity score {(c.opportunity_score or 0):.3f}"
         for c in clusters
     )
 
     opps_section = "\n".join(
-        f"\n### {o.title}\n{o.why_it_matters}\n\n**Risk**: {o.risk_level} · **Score**: {o.score:.3f}"
+        f"\n### {o.title}\n{o.why_it_matters}\n\n**Risk**: {o.risk_level} · **Score**: {(o.score or 0):.3f}"
         for o in top_opps
     )
 

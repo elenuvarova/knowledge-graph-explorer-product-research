@@ -267,7 +267,7 @@ def _expand_topic(topic: str) -> list[str]:
         return _simple_expand(topic)
     try:
         from groq import Groq
-        client = Groq(api_key=api_key)
+        client = Groq(api_key=api_key, timeout=20.0)
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             max_tokens=256,
@@ -282,9 +282,12 @@ def _expand_topic(topic: str) -> list[str]:
             }],
         )
         data = json.loads(response.choices[0].message.content.strip())
-        terms = data.get("terms", [])
+        raw_terms = data.get("terms", []) if isinstance(data, dict) else []
+        # The model occasionally returns a bare string or nested objects; keep
+        # only non-empty strings so we never slice a string into characters.
+        terms = [str(t).strip() for t in raw_terms if isinstance(t, str) and t.strip()]
         if terms:
-            return [topic] + terms
+            return list(dict.fromkeys([topic] + terms))
     except Exception as exc:
         print(f"[expand] groq error: {exc}")
     return _simple_expand(topic)

@@ -65,6 +65,11 @@ def get_brief(project_id: str, db: Session = Depends(get_db)):
 @router.delete("/{project_id}", status_code=204)
 def delete_project(project_id: str, db: Session = Depends(get_db)):
     project = _get_or_404(project_id, db)
+    # Delete all children before the parent. SQLite does not enforce
+    # ondelete="CASCADE" without a per-connection PRAGMA, and on Postgres a
+    # bare parent delete raises a FK violation while children still reference it.
+    db.query(Opportunity).filter_by(project_id=project_id).delete()
+    db.query(Cluster).filter_by(project_id=project_id).delete()
     db.query(Relationship).filter_by(project_id=project_id).delete()
     db.query(Entity).filter_by(project_id=project_id).delete()
     db.delete(project)
@@ -76,7 +81,7 @@ def _run_build(project_id: str):
     try:
         build_project_graph(project_id, db)
     except Exception as exc:
-        project = db.query(ResearchProject).get(project_id)
+        project = db.get(ResearchProject, project_id)
         if project:
             project.status = "error"
             project.error_message = str(exc)

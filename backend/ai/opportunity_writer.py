@@ -48,7 +48,7 @@ def enrich_with_ai(
 
     try:
         from groq import Groq
-        client = Groq(api_key=api_key)
+        client = Groq(api_key=api_key, timeout=20.0)
     except ImportError:
         print("[ai] groq package not installed")
         return candidates
@@ -81,11 +81,19 @@ def enrich_with_ai(
             )
             raw = response.choices[0].message.content.strip()
             data = json.loads(raw)
+            if not isinstance(data, dict):
+                raise ValueError("model did not return a JSON object")
 
-            candidate.title = data.get("title", candidate.title)
-            candidate.why_it_matters = data.get("why_it_matters", candidate.why_it_matters)
-            candidate.risks = data.get("risks", candidate.risks)
-            candidate.next_questions = data.get("next_questions", candidate.next_questions)
+            title = data.get("title")
+            if isinstance(title, str) and title.strip():
+                candidate.title = title.strip()
+            why = data.get("why_it_matters")
+            if isinstance(why, str) and why.strip():
+                candidate.why_it_matters = why.strip()
+            if isinstance(data.get("risks"), list):
+                candidate.risks = [str(r) for r in data["risks"] if str(r).strip()]
+            if isinstance(data.get("next_questions"), list):
+                candidate.next_questions = [str(q) for q in data["next_questions"] if str(q).strip()]
             candidate.generated_by_ai = True
             print(f"[ai] generated card for cluster '{cluster.name}'")
 

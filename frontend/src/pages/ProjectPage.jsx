@@ -13,6 +13,18 @@ const TABS = [
   { id: 'opportunities', label: 'Opps' },
 ]
 
+// Escape every HTML-significant character. The brief markdown is LLM-generated
+// and the filename derives from the user-supplied topic, so both must be
+// neutralised before being written into the print window's DOM (stored XSS).
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 function StatusBadge({ status }) {
   return <span className={`badge badge-${status}`}>{status}</span>
 }
@@ -29,6 +41,7 @@ export default function ProjectPage() {
   const briefMutation = useMutation({
     mutationFn: () => getBrief(id),
     onSuccess: (data) => setBrief(data),
+    onError: (e) => alert(`Could not generate brief: ${e.message}`),
   })
 
   const { data: project, error: projErr } = useQuery({
@@ -261,7 +274,11 @@ export default function ProjectPage() {
                   style={{ padding: '0.25rem 0.7rem', fontSize: 'var(--text-xs)' }}
                   onClick={() => {
                     const win = window.open('', '_blank')
-                    win.document.write(`<!DOCTYPE html><html><head><title>${brief.filename}</title>
+                    if (!win) {
+                      alert('Please allow pop-ups to print the brief.')
+                      return
+                    }
+                    win.document.write(`<!DOCTYPE html><html><head><title>${escapeHtml(brief.filename)}</title>
 <style>
   body{font-family:system-ui,sans-serif;max-width:780px;margin:40px auto;padding:0 24px;color:#111;line-height:1.7}
   h1{font-size:2em;border-bottom:2px solid #eee;padding-bottom:.3em;margin-bottom:.5em}
@@ -275,7 +292,7 @@ export default function ProjectPage() {
   @media print{body{margin:20px}button{display:none}}
 </style></head><body>
 <button onclick="window.print()" style="margin-bottom:24px;padding:8px 16px;cursor:pointer">Print / Save PDF</button>
-<pre style="font-family:system-ui,sans-serif;white-space:pre-wrap;font-size:15px">${brief.markdown.replace(/</g,'&lt;')}</pre>
+<pre style="font-family:system-ui,sans-serif;white-space:pre-wrap;font-size:15px">${escapeHtml(brief.markdown)}</pre>
 </body></html>`)
                     win.document.close()
                   }}

@@ -24,7 +24,9 @@ export const createProject = (body) =>
 export const buildProject = (id) =>
   req(`/projects/${id}/build`, { method: 'POST' })
 
-export const deleteProject = (id) =>
-  fetch(`${BASE}/projects/${id}`, { method: 'DELETE' })
+export const deleteProject = async (id) => {
+  const r = await fetch(`${BASE}/projects/${id}`, { method: 'DELETE' })
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
+}
 
 export const getBrief = (id) => req(`/projects/${id}/brief`)
