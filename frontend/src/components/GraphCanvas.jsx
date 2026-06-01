@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useCallback } from 'react'
 import CytoscapeComponent from 'react-cytoscapejs'
 import Cytoscape from 'cytoscape'
 import cola from 'cytoscape-cola'
@@ -82,16 +82,6 @@ const COLA = {
   ungrabifyWhileSimulating: true,
 }
 
-// Quick non-animated settle used during node drag (neighbors shift instantly,
-// no continuous redraw loop → no CPU spike while dragging).
-const COLA_DRAG = {
-  ...COLA,
-  animate: false,
-  maxSimulationTime: 150,
-  fit: false,
-  infinite: false,
-  ungrabifyWhileSimulating: false,
-}
 
 function buildElements(nodes, edges) {
   const els = []
@@ -127,43 +117,37 @@ export default function GraphCanvas({
   selectedId, onNodeClick, onCyInit,
 }) {
   const cyRef = useRef(null)
-  const liveLayout = useRef(null)
+  // Keep a stable ref to onNodeClick so event handlers registered at init
+  // always call the current prop without needing to re-register.
+  const onNodeClickRef = useRef(onNodeClick)
+  useEffect(() => { onNodeClickRef.current = onNodeClick }, [onNodeClick])
 
-  // Rebuild elements only when the underlying graph data changes (not on every
-  // parent re-render), so selection/highlight never re-runs the layout.
   const elements = useMemo(() => buildElements(nodes, edges), [nodes, edges])
-  // Stable references so parent re-renders never re-trigger layout/stylesheet.
-  // Theme changes are applied imperatively via cy.style() in the effect below.
   const presetLayout = useMemo(() => ({ name: 'preset' }), [])
   const initialStylesheet = useMemo(() => makeStylesheet(), [])
 
-  const handleCy = (cy) => {
+  const handleCy = useCallback((cy) => {
     cyRef.current = cy
     cy._highlightedCluster = null
     if (onCyInit) onCyInit(cy)
 
-    // Initial physics layout. Disable animation when user prefers reduced motion.
     cy.layout({ ...COLA, animate: !prefersReducedMotion }).run()
 
-    // Select / inspect a node.
-    cy.on('tap', 'node', (evt) => { if (onNodeClick) onNodeClick(evt.target.data()) })
+    cy.on('tap', 'node', (evt) => { onNodeClickRef.current?.(evt.target.data()) })
 
-    // Tap empty space → clear selection + any hover fade.
     cy.on('tap', (evt) => {
       if (evt.target === cy) {
-        cy.elements().removeClass('faded')
-        if (onNodeClick) onNodeClick(null)
+        cy.batch(() => cy.elements().removeClass('faded'))
+        onNodeClickRef.current?.(null)
       }
     })
 
-    // Double-tap empty space → re-fit the whole graph.
     cy.on('dbltap', (evt) => {
       if (evt.target === cy) cy.animate({ fit: { padding: 48 }, duration: prefersReducedMotion ? 0 : 400 })
     })
 
-    // Hover → focus a node's neighbourhood (disabled while a cluster is pinned).
-    // Debounced 40 ms so fast mouse movement doesn't trigger a cascade of batch
-    // style updates, which are the main source of interaction lag on big graphs.
+    // Hover → fade non-neighbours. Debounced 40 ms so fast mouse movement
+    // doesn't fire a cascade of batch style recalculations.
     let hoverTimer = null
     cy.on('mouseover', 'node', (evt) => {
       if (cy._highlightedCluster) return
@@ -178,29 +162,15 @@ export default function GraphCanvas({
       clearTimeout(hoverTimer)
       cy.batch(() => cy.elements().removeClass('faded'))
     })
+    // Nodes are freely draggable after the initial layout — no live physics
+    // during drag avoids blocking the main thread on every mousemove event.
+  }, [onCyInit])
 
-    // Drag → run a short non-animated cola pass so connected nodes shift once
-    // on release. This avoids the continuous redraw of an infinite layout while
-    // still giving a rubber-band feel on drop.
-    // Disabled under prefers-reduced-motion (M-1).
-    cy.on('drag', 'node', () => {
-      if (prefersReducedMotion || liveLayout.current) return
-      liveLayout.current = cy.layout(COLA_DRAG)
-      liveLayout.current.one('layoutstop', () => { liveLayout.current = null })
-      liveLayout.current.run()
-    })
-    cy.on('free', 'node', () => {
-      if (liveLayout.current) { liveLayout.current.stop(); liveLayout.current = null }
-    })
-  }
-
-  // Re-skin the graph when the theme flips.
   useEffect(() => {
     const cy = cyRef.current
     if (cy) cy.style(makeStylesheet())
   }, [theme])
 
-  // Reflect external selection.
   useEffect(() => {
     const cy = cyRef.current
     if (!cy) return
@@ -209,9 +179,6 @@ export default function GraphCanvas({
       if (selectedId) cy.getElementById(selectedId).select()
     })
   }, [selectedId])
-
-  // Stop the live layout if the component unmounts mid-drag.
-  useEffect(() => () => { if (liveLayout.current) liveLayout.current.stop() }, [])
 
   const nodeCount = nodes.length
   const edgeCount = edges.length
