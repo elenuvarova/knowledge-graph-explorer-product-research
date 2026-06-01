@@ -261,15 +261,15 @@ def _build_nx(name_to_id: dict[str, str], edges: list[tuple]) -> nx.Graph:
 
 
 def _expand_topic(topic: str) -> list[str]:
-    """Use Claude to generate search terms, fall back to simple split."""
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+    """Use Groq (Llama 3.3) to generate search terms, fall back to simple split."""
+    api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         return _simple_expand(topic)
     try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
-        msg = client.messages.create(
-            model="claude-sonnet-4-6",
+        from groq import Groq
+        client = Groq(api_key=api_key)
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
             max_tokens=256,
             messages=[{
                 "role": "user",
@@ -281,12 +281,12 @@ def _expand_topic(topic: str) -> list[str]:
                 ),
             }],
         )
-        data = json.loads(msg.content[0].text)
+        data = json.loads(response.choices[0].message.content.strip())
         terms = data.get("terms", [])
         if terms:
             return [topic] + terms
     except Exception as exc:
-        print(f"[expand] claude error: {exc}")
+        print(f"[expand] groq error: {exc}")
     return _simple_expand(topic)
 
 

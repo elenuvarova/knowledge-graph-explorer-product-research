@@ -12,5 +12,5 @@ services:
         value: 3001
       - key: DATABASE_URL
         sync: false
-      - key: ANTHROPIC_API_KEY
+      - key: GROQ_API_KEY
         sync: false

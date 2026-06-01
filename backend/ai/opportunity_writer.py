@@ -1,6 +1,6 @@
 """
-Use Claude to enrich opportunity candidates with narrative cards.
-Falls back to template descriptions if ANTHROPIC_API_KEY is not set.
+Use Groq (Llama 3.3) to enrich opportunity candidates with narrative cards.
+Falls back to template descriptions if GROQ_API_KEY is not set.
 """
 from __future__ import annotations
 import os
@@ -8,8 +8,8 @@ import json
 import time
 from graph.opportunities import OpportunityCandidate
 
-# Only the top N clusters get AI-generated cards (keeps API cost low)
 _AI_CARD_LIMIT = 5
+_MODEL = "llama-3.3-70b-versatile"
 
 _SYSTEM = (
     "You are a senior product strategist helping product managers discover opportunities "
@@ -41,21 +41,16 @@ def enrich_with_ai(
     topic: str,
     entities_by_cluster: dict[str, list],
 ) -> list[OpportunityCandidate]:
-    """
-    For the top _AI_CARD_LIMIT candidates, call Claude to replace the
-    template title/why/risks/questions with AI-generated content.
-    Returns the same list (mutated in-place).
-    """
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+    api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        print("[ai] ANTHROPIC_API_KEY not set — using template descriptions")
+        print("[ai] GROQ_API_KEY not set — using template descriptions")
         return candidates
 
     try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
+        from groq import Groq
+        client = Groq(api_key=api_key)
     except ImportError:
-        print("[ai] anthropic package not installed")
+        print("[ai] groq package not installed")
         return candidates
 
     for candidate in candidates[:_AI_CARD_LIMIT]:
@@ -76,13 +71,15 @@ def enrich_with_ai(
         )
 
         try:
-            msg = client.messages.create(
-                model="claude-sonnet-4-6",
+            response = client.chat.completions.create(
+                model=_MODEL,
                 max_tokens=512,
-                system=_SYSTEM,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[
+                    {"role": "system", "content": _SYSTEM},
+                    {"role": "user", "content": prompt},
+                ],
             )
-            raw = msg.content[0].text.strip()
+            raw = response.choices[0].message.content.strip()
             data = json.loads(raw)
 
             candidate.title = data.get("title", candidate.title)
@@ -93,8 +90,8 @@ def enrich_with_ai(
             print(f"[ai] generated card for cluster '{cluster.name}'")
 
         except Exception as exc:
-            print(f"[ai] claude error for cluster '{cluster.name}': {exc}")
+            print(f"[ai] groq error for cluster '{cluster.name}': {exc}")
 
-        time.sleep(0.3)  # stay well within rate limits
+        time.sleep(0.2)
 
     return candidates
