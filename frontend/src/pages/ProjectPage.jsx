@@ -170,14 +170,18 @@ export default function ProjectPage() {
     setPanelOpen(!isDeselect)
 
     if (!cy) return
-    cy.elements().removeClass('faded')
-    cy.nodes().removeClass('highlighted')
-    cy.edges().removeClass('highlighted')
+    cy.batch(() => {
+      cy.elements().removeClass('faded')
+      cy.nodes().removeClass('highlighted')
+      cy.edges().removeClass('highlighted')
+    })
 
     if (!isDeselect) {
       const inCluster = cy.nodes(`[cluster_id = "${clusterId}"]`)
-      inCluster.addClass('highlighted')
-      inCluster.connectedEdges().addClass('highlighted')
+      cy.batch(() => {
+        inCluster.addClass('highlighted')
+        inCluster.connectedEdges().addClass('highlighted')
+      })
       cy._highlightedCluster = clusterId
       if (inCluster.length) cy.animate({ fit: { eles: inCluster, padding: 60 }, duration: prefersReducedMotion ? 0 : 400 })
     } else {
@@ -199,9 +203,11 @@ export default function ProjectPage() {
     if (tab === 'clusters') {
       setHighlightClusterId(null)
       if (cy) {
-        cy.nodes().removeClass('highlighted')
-        cy.edges().removeClass('highlighted')
-        cy.elements().removeClass('faded')
+        cy.batch(() => {
+          cy.nodes().removeClass('highlighted')
+          cy.edges().removeClass('highlighted')
+          cy.elements().removeClass('faded')
+        })
         cy._highlightedCluster = null
       }
     }
@@ -209,13 +215,15 @@ export default function ProjectPage() {
 
   const highlightNodes = (ids) => {
     if (!cy) return
-    cy.nodes().removeClass('highlighted')
-    cy.edges().removeClass('highlighted')
-    cy.elements().removeClass('faded')
     let coll = cy.collection()
     ;(ids || []).forEach((nid) => { coll = coll.union(cy.getElementById(nid)) })
-    coll.addClass('highlighted')
-    coll.connectedEdges().addClass('highlighted')
+    cy.batch(() => {
+      cy.nodes().removeClass('highlighted')
+      cy.edges().removeClass('highlighted')
+      cy.elements().removeClass('faded')
+      coll.addClass('highlighted')
+      coll.connectedEdges().addClass('highlighted')
+    })
     cy._highlightedCluster = '__ask__'
     if (coll.length) cy.animate({ fit: { eles: coll, padding: 60 }, duration: prefersReducedMotion ? 0 : 400 })
   }
@@ -228,8 +236,10 @@ export default function ProjectPage() {
 
   const clearAskHighlight = () => {
     if (cy && cy._highlightedCluster === '__ask__') {
-      cy.nodes().removeClass('highlighted')
-      cy.edges().removeClass('highlighted')
+      cy.batch(() => {
+        cy.nodes().removeClass('highlighted')
+        cy.edges().removeClass('highlighted')
+      })
       cy._highlightedCluster = null
     }
   }

@@ -70,15 +70,27 @@ function makeStylesheet() {
 const COLA = {
   name: 'cola',
   animate: true,
-  refresh: 1,
+  refresh: 2,
   fit: true,
   padding: 48,
   nodeSpacing: 10,
   edgeLength: 95,
   randomize: false,
   handleDisconnected: true,
-  convergenceThreshold: 0.01,
-  maxSimulationTime: 2200,
+  convergenceThreshold: 0.04,
+  maxSimulationTime: 1400,
+  ungrabifyWhileSimulating: true,
+}
+
+// Quick non-animated settle used during node drag (neighbors shift instantly,
+// no continuous redraw loop → no CPU spike while dragging).
+const COLA_DRAG = {
+  ...COLA,
+  animate: false,
+  maxSimulationTime: 150,
+  fit: false,
+  infinite: false,
+  ungrabifyWhileSimulating: false,
 }
 
 function buildElements(nodes, edges) {
@@ -150,23 +162,31 @@ export default function GraphCanvas({
     })
 
     // Hover → focus a node's neighbourhood (disabled while a cluster is pinned).
+    // Debounced 40 ms so fast mouse movement doesn't trigger a cascade of batch
+    // style updates, which are the main source of interaction lag on big graphs.
+    let hoverTimer = null
     cy.on('mouseover', 'node', (evt) => {
       if (cy._highlightedCluster) return
-      const keep = evt.target.closedNeighborhood()
-      cy.elements().difference(keep).addClass('faded')
+      clearTimeout(hoverTimer)
+      hoverTimer = setTimeout(() => {
+        const keep = evt.target.closedNeighborhood()
+        cy.batch(() => cy.elements().difference(keep).addClass('faded'))
+      }, 40)
     })
     cy.on('mouseout', 'node', () => {
       if (cy._highlightedCluster) return
-      cy.elements().removeClass('faded')
+      clearTimeout(hoverTimer)
+      cy.batch(() => cy.elements().removeClass('faded'))
     })
 
-    // Drag → live physics so connected nodes follow like rubber bands; settle on
-    // drop. Triggered on the first real drag movement (not a plain click) so
-    // simply selecting a node never disturbs the layout.
-    // Disabled under prefers-reduced-motion to avoid continuous animation (M-1).
+    // Drag → run a short non-animated cola pass so connected nodes shift once
+    // on release. This avoids the continuous redraw of an infinite layout while
+    // still giving a rubber-band feel on drop.
+    // Disabled under prefers-reduced-motion (M-1).
     cy.on('drag', 'node', () => {
       if (prefersReducedMotion || liveLayout.current) return
-      liveLayout.current = cy.layout({ ...COLA, infinite: true, fit: false })
+      liveLayout.current = cy.layout(COLA_DRAG)
+      liveLayout.current.one('layoutstop', () => { liveLayout.current = null })
       liveLayout.current.run()
     })
     cy.on('free', 'node', () => {
@@ -184,8 +204,10 @@ export default function GraphCanvas({
   useEffect(() => {
     const cy = cyRef.current
     if (!cy) return
-    cy.nodes().unselect()
-    if (selectedId) cy.getElementById(selectedId).select()
+    cy.batch(() => {
+      cy.nodes().unselect()
+      if (selectedId) cy.getElementById(selectedId).select()
+    })
   }, [selectedId])
 
   // Stop the live layout if the component unmounts mid-drag.
