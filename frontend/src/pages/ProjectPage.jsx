@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getProject, getGraph, getClusters, getOpportunities, getEntity, getBrief, buildProject } from '../api'
+import { getProject, getGraph, getClusters, getOpportunities, getEntity, getBrief, buildProject, uploadDocument } from '../api'
 import GraphCanvas from '../components/GraphCanvas'
 import EntityCard from '../components/EntityCard'
 import ClusterPanel from '../components/ClusterPanel'
@@ -36,6 +36,7 @@ export default function ProjectPage() {
   const { id } = useParams()
   const qc = useQueryClient()
   const { theme } = useTheme()
+  const fileInputRef = useRef(null)
   const [tab, setTab] = useState('graph')
   const [selectedId, setSelectedId] = useState(null)
   const [highlightClusterId, setHighlightClusterId] = useState(null)
@@ -53,6 +54,25 @@ export default function ProjectPage() {
     mutationFn: () => buildProject(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['project', id] }),
   })
+
+  const uploadMutation = useMutation({
+    mutationFn: (file) => uploadDocument(id, file),
+    onSuccess: () => {
+      // Status flips to building; mark the dependent views stale so they refetch
+      // the enriched graph once the project is ready again.
+      qc.invalidateQueries({ queryKey: ['project', id] })
+      qc.invalidateQueries({ queryKey: ['graph', id] })
+      qc.invalidateQueries({ queryKey: ['clusters', id] })
+      qc.invalidateQueries({ queryKey: ['opportunities', id] })
+    },
+    onError: (e) => alert(`Upload failed: ${e.message}`),
+  })
+
+  const onPickFile = (e) => {
+    const file = e.target.files?.[0]
+    if (file) uploadMutation.mutate(file)
+    e.target.value = ''
+  }
 
   const { data: project, error: projErr, refetch: refetchProject } = useQuery({
     queryKey: ['project', id],
@@ -174,13 +194,30 @@ export default function ProjectPage() {
         <StatusBadge status={project.status} />
         <div className="header-actions">
           {isReady && (
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => briefMutation.mutate()}
-              disabled={briefMutation.isPending}
-            >
-              {briefMutation.isPending ? '…' : 'Brief'}
-            </button>
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.csv,.txt,.md"
+                hidden
+                onChange={onPickFile}
+              />
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadMutation.isPending}
+                title="Add a PDF or CSV to enrich the graph"
+              >
+                {uploadMutation.isPending ? '…' : 'Upload'}
+              </button>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => briefMutation.mutate()}
+                disabled={briefMutation.isPending}
+              >
+                {briefMutation.isPending ? '…' : 'Brief'}
+              </button>
+            </>
           )}
           <ThemeToggle size="sm" />
         </div>

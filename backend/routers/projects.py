@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
@@ -6,6 +6,9 @@ from typing import Optional
 from database import get_db, SessionLocal
 from models import ResearchProject, Entity, Relationship, Cluster, Opportunity
 from graph.builder import build_project_graph
+
+_MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB
+_ALLOWED_EXT = (".pdf", ".csv", ".txt", ".md")
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -62,6 +65,33 @@ def get_brief(project_id: str, db: Session = Depends(get_db)):
     return {"markdown": markdown, "filename": f"brief-{slug}.md"}
 
 
+@router.post("/{project_id}/upload")
+async def upload_document(
+    project_id: str,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    project = _get_or_404(project_id, db)
+    if project.status == "building":
+        raise HTTPException(status_code=409, detail="Project is already processing")
+
+    filename = file.filename or "upload"
+    if not filename.lower().endswith(_ALLOWED_EXT):
+        raise HTTPException(status_code=415, detail="Unsupported file type. Use PDF, CSV, TXT or MD.")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="The uploaded file is empty")
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large (max 5 MB)")
+
+    project.status = "building"
+    db.commit()
+    background_tasks.add_task(_run_ingest, project_id, filename, content)
+    return {"status": "building", "filename": filename}
+
+
 @router.delete("/{project_id}", status_code=204)
 def delete_project(project_id: str, db: Session = Depends(get_db)):
     project = _get_or_404(project_id, db)
@@ -85,6 +115,38 @@ def _run_build(project_id: str):
         if project:
             project.status = "error"
             project.error_message = str(exc)
+            db.commit()
+    finally:
+        db.close()
+
+
+def _run_ingest(project_id: str, filename: str, content: bytes):
+    """Parse an uploaded document, extract a sub-graph, merge it into the
+    project's graph, and recompute clusters/opportunities."""
+    db = SessionLocal()
+    try:
+        from sources.uploads import parse_document, csv_rows
+        from ai.extractor import extract_graph
+        from graph.builder import enrich_from_extraction
+
+        project = db.get(ResearchProject, project_id)
+        if not project:
+            return
+
+        text = parse_document(filename, content)
+        rows = csv_rows(filename, content)
+        entities, relationships = extract_graph(text, project.topic, csv_rows=rows)
+        enrich_from_extraction(project_id, db, entities, relationships)
+
+        project = db.get(ResearchProject, project_id)
+        if project:
+            project.status = "ready"
+            db.commit()
+    except Exception as exc:
+        project = db.get(ResearchProject, project_id)
+        if project:
+            project.status = "error"
+            project.error_message = f"Upload failed: {exc}"
             db.commit()
     finally:
         db.close()

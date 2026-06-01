@@ -30,3 +30,10 @@ export const deleteProject = async (id) => {
 }
 
 export const getBrief = (id) => req(`/projects/${id}/brief`)
+
+export const uploadDocument = (projectId, file) => {
+  const form = new FormData()
+  form.append('file', file)
+  // No explicit Content-Type — the browser sets the multipart boundary.
+  return req(`/projects/${projectId}/upload`, { method: 'POST', body: form })
+}
