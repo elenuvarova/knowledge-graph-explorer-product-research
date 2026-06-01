@@ -1,0 +1,90 @@
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from typing import Optional
+
+from database import get_db, SessionLocal
+from models import ResearchProject, Entity, Relationship
+from graph.builder import build_project_graph
+
+router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+class ProjectCreate(BaseModel):
+    topic: str
+    region: Optional[str] = None
+    goal: Optional[str] = None
+
+
+@router.post("", status_code=201)
+def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
+    project = ResearchProject(topic=body.topic, region=body.region, goal=body.goal)
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+    return _project_out(project)
+
+
+@router.get("")
+def list_projects(db: Session = Depends(get_db)):
+    projects = db.query(ResearchProject).order_by(ResearchProject.created_at.desc()).all()
+    return [_project_out(p) for p in projects]
+
+
+@router.get("/{project_id}")
+def get_project(project_id: str, db: Session = Depends(get_db)):
+    project = _get_or_404(project_id, db)
+    return _project_out(project)
+
+
+@router.post("/{project_id}/build")
+def trigger_build(project_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    project = _get_or_404(project_id, db)
+    if project.status == "building":
+        return {"status": "already_building"}
+    project.status = "building"
+    db.commit()
+    background_tasks.add_task(_run_build, project_id)
+    return {"status": "building", "project_id": project_id}
+
+
+@router.delete("/{project_id}", status_code=204)
+def delete_project(project_id: str, db: Session = Depends(get_db)):
+    project = _get_or_404(project_id, db)
+    db.query(Relationship).filter_by(project_id=project_id).delete()
+    db.query(Entity).filter_by(project_id=project_id).delete()
+    db.delete(project)
+    db.commit()
+
+
+def _run_build(project_id: str):
+    db = SessionLocal()
+    try:
+        build_project_graph(project_id, db)
+    except Exception as exc:
+        project = db.query(ResearchProject).get(project_id)
+        if project:
+            project.status = "error"
+            project.error_message = str(exc)
+            db.commit()
+    finally:
+        db.close()
+
+
+def _get_or_404(project_id: str, db: Session) -> ResearchProject:
+    project = db.query(ResearchProject).filter_by(id=project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+def _project_out(p: ResearchProject) -> dict:
+    return {
+        "id": p.id,
+        "topic": p.topic,
+        "region": p.region,
+        "goal": p.goal,
+        "status": p.status,
+        "error_message": p.error_message,
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+    }
