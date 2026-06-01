@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from database import get_db, SessionLocal
-from models import ResearchProject, Entity, Relationship
+from models import ResearchProject, Entity, Relationship, Cluster, Opportunity
 from graph.builder import build_project_graph
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -46,6 +46,20 @@ def trigger_build(project_id: str, background_tasks: BackgroundTasks, db: Sessio
     db.commit()
     background_tasks.add_task(_run_build, project_id)
     return {"status": "building", "project_id": project_id}
+
+
+@router.get("/{project_id}/brief")
+def get_brief(project_id: str, db: Session = Depends(get_db)):
+    project = _get_or_404(project_id, db)
+    if project.status != "ready":
+        raise HTTPException(status_code=400, detail="Project is not ready yet")
+    entities = db.query(Entity).filter_by(project_id=project_id).all()
+    clusters = db.query(Cluster).filter_by(project_id=project_id).all()
+    opportunities = db.query(Opportunity).filter_by(project_id=project_id).all()
+    from ai.brief_generator import generate_brief
+    markdown = generate_brief(project, entities, clusters, opportunities)
+    slug = project.topic.lower().replace(" ", "-")[:30]
+    return {"markdown": markdown, "filename": f"brief-{slug}.md"}
 
 
 @router.delete("/{project_id}", status_code=204)

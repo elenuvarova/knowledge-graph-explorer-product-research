@@ -26,3 +26,5 @@ export const buildProject = (id) =>
 
 export const deleteProject = (id) =>
   fetch(`${BASE}/projects/${id}`, { method: 'DELETE' })
+
+export const getBrief = (id) => req(`/projects/${id}/brief`)

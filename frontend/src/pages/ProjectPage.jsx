@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { getProject, getGraph, getClusters, getOpportunities, getEntity } from '../api'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { getProject, getGraph, getClusters, getOpportunities, getEntity, getBrief } from '../api'
 import GraphCanvas from '../components/GraphCanvas'
 import EntityCard from '../components/EntityCard'
 import ClusterPanel from '../components/ClusterPanel'
@@ -24,6 +24,12 @@ export default function ProjectPage() {
   const [highlightClusterId, setHighlightClusterId] = useState(null)
   const [cy, setCy] = useState(null)
   const [panelOpen, setPanelOpen] = useState(false)
+  const [brief, setBrief] = useState(null)
+
+  const briefMutation = useMutation({
+    mutationFn: () => getBrief(id),
+    onSuccess: (data) => setBrief(data),
+  })
 
   const { data: project, error: projErr } = useQuery({
     queryKey: ['project', id],
@@ -131,6 +137,16 @@ export default function ProjectPage() {
           <span className="project-header-count">{nodeCount} nodes</span>
         )}
         <StatusBadge status={project.status} />
+        {isReady && (
+          <button
+            className="btn btn-secondary"
+            style={{ padding: '0.25rem 0.7rem', fontSize: 'var(--text-xs)', flexShrink: 0 }}
+            onClick={() => briefMutation.mutate()}
+            disabled={briefMutation.isPending}
+          >
+            {briefMutation.isPending ? '…' : 'Brief'}
+          </button>
+        )}
       </div>
 
       {/* ── Tab bar (separate row) ── */}
@@ -216,6 +232,66 @@ export default function ProjectPage() {
             ) : (
               <EntityCard entity={entityData} />
             )}
+          </div>
+        </div>
+      )}
+      {/* Brief modal */}
+      {brief && (
+        <div className="brief-overlay" onClick={() => setBrief(null)}>
+          <div className="brief-modal" onClick={e => e.stopPropagation()}>
+            <div className="brief-modal-header">
+              <span className="brief-modal-title">Research Brief</span>
+              <div style={{ display: 'flex', gap: 'var(--sp-2)' }}>
+                <button
+                  className="btn btn-secondary"
+                  style={{ padding: '0.25rem 0.7rem', fontSize: 'var(--text-xs)' }}
+                  onClick={() => {
+                    const blob = new Blob([brief.markdown], { type: 'text/markdown' })
+                    const a = document.createElement('a')
+                    a.href = URL.createObjectURL(blob)
+                    a.download = brief.filename
+                    a.click()
+                    URL.revokeObjectURL(a.href)
+                  }}
+                >
+                  Download .md
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  style={{ padding: '0.25rem 0.7rem', fontSize: 'var(--text-xs)' }}
+                  onClick={() => {
+                    const win = window.open('', '_blank')
+                    win.document.write(`<!DOCTYPE html><html><head><title>${brief.filename}</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:780px;margin:40px auto;padding:0 24px;color:#111;line-height:1.7}
+  h1{font-size:2em;border-bottom:2px solid #eee;padding-bottom:.3em;margin-bottom:.5em}
+  h2{font-size:1.35em;border-bottom:1px solid #eee;padding-bottom:.2em;margin-top:2em}
+  h3{font-size:1.1em;margin-top:1.5em}
+  table{border-collapse:collapse;width:100%;margin:1em 0}
+  th,td{border:1px solid #ddd;padding:7px 12px;text-align:left}
+  th{background:#f7f7f7;font-weight:600}
+  code{background:#f5f5f5;padding:2px 5px;border-radius:3px;font-size:.9em}
+  hr{border:none;border-top:1px solid #eee;margin:2em 0}
+  @media print{body{margin:20px}button{display:none}}
+</style></head><body>
+<button onclick="window.print()" style="margin-bottom:24px;padding:8px 16px;cursor:pointer">Print / Save PDF</button>
+<pre style="font-family:system-ui,sans-serif;white-space:pre-wrap;font-size:15px">${brief.markdown.replace(/</g,'&lt;')}</pre>
+</body></html>`)
+                    win.document.close()
+                  }}
+                >
+                  Print
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  style={{ padding: '0.25rem 0.7rem', fontSize: 'var(--text-xs)' }}
+                  onClick={() => setBrief(null)}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <pre className="brief-content">{brief.markdown}</pre>
           </div>
         </div>
       )}
