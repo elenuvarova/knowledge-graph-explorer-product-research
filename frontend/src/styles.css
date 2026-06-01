@@ -684,7 +684,8 @@ button { cursor: pointer; font-family: inherit; font-size: var(--text-base); col
 .cluster-panel { padding: var(--sp-4); flex: 1; }
 
 .cluster-panel h3,
-.opp-board h3 {
+.opp-board h3,
+.ask-panel h3 {
   font-size: var(--text-xs);
   font-weight: var(--fw-semibold);
   text-transform: uppercase;
@@ -804,6 +805,65 @@ button { cursor: pointer; font-family: inherit; font-size: var(--text-base); col
   color: var(--text-dim);
 }
 .opp-ai-flag { color: var(--accent-bright); font-weight: var(--fw-semibold); }
+
+/* ════════════════════════════════════════════════════════════
+   ASK PANEL (RAG Q&A)
+════════════════════════════════════════════════════════════ */
+.ask-panel { padding: var(--sp-4); flex: 1; display: flex; flex-direction: column; gap: var(--sp-4); }
+
+.ask-form { display: flex; flex-direction: column; gap: var(--sp-3); }
+.ask-form textarea {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: var(--sp-3);
+  font-size: var(--text-base);
+  font-family: inherit;
+  line-height: var(--lh-base);
+  resize: vertical;
+  outline: none;
+  transition: border-color var(--ease-base), box-shadow var(--ease-base);
+}
+.ask-form textarea::placeholder { color: var(--text-dim); }
+.ask-form textarea:focus {
+  border-color: var(--accent-bright);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.ask-suggestions { display: flex; flex-direction: column; gap: var(--sp-2); }
+.ask-chip {
+  text-align: left;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  transition: color var(--ease-base), background var(--ease-base), border-color var(--ease-base);
+}
+.ask-chip:hover { color: var(--text); border-color: var(--border-strong); background: var(--surface-3); }
+
+.ask-answer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.ask-answer-label {
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-eyebrow);
+  color: var(--text-dim);
+  margin-bottom: var(--sp-2);
+}
+.ask-answer-text { font-size: var(--text-sm); line-height: var(--lh-relaxed); color: var(--text); }
+.ask-sources { border-top: 1px solid var(--border); padding-top: var(--sp-3); }
 
 /* ════════════════════════════════════════════════════════════
    STATE SCREENS · LOADING · SKELETONS

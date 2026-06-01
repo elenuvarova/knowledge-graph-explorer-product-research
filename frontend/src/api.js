@@ -37,3 +37,10 @@ export const uploadDocument = (projectId, file) => {
   // No explicit Content-Type — the browser sets the multipart boundary.
   return req(`/projects/${projectId}/upload`, { method: 'POST', body: form })
 }
+
+export const askQuestion = (projectId, question) =>
+  req(`/projects/${projectId}/ask`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question }),
+  })

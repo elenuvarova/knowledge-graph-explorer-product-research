@@ -19,6 +19,10 @@ class ProjectCreate(BaseModel):
     goal: Optional[str] = None
 
 
+class AskRequest(BaseModel):
+    question: str
+
+
 @router.post("", status_code=201)
 def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
     project = ResearchProject(topic=body.topic, region=body.region, goal=body.goal)
@@ -63,6 +67,19 @@ def get_brief(project_id: str, db: Session = Depends(get_db)):
     markdown = generate_brief(project, entities, clusters, opportunities)
     slug = project.topic.lower().replace(" ", "-")[:30]
     return {"markdown": markdown, "filename": f"brief-{slug}.md"}
+
+
+@router.post("/{project_id}/ask")
+def ask_question(project_id: str, body: AskRequest, db: Session = Depends(get_db)):
+    project = _get_or_404(project_id, db)
+    if project.status != "ready":
+        raise HTTPException(status_code=400, detail="Project is not ready yet")
+    question = (body.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="Question is empty")
+    entities = db.query(Entity).filter_by(project_id=project_id).all()
+    from ai.qa import answer_question
+    return answer_question(project, entities, question)
 
 
 @router.post("/{project_id}/upload")

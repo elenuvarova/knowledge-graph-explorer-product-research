@@ -1,11 +1,12 @@
 import { useState, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getProject, getGraph, getClusters, getOpportunities, getEntity, getBrief, buildProject, uploadDocument } from '../api'
+import { getProject, getGraph, getClusters, getOpportunities, getEntity, getBrief, buildProject, uploadDocument, askQuestion } from '../api'
 import GraphCanvas from '../components/GraphCanvas'
 import EntityCard from '../components/EntityCard'
 import ClusterPanel from '../components/ClusterPanel'
 import OpportunityBoard from '../components/OpportunityBoard'
+import AskPanel from '../components/AskPanel'
 import ThemeToggle from '../components/ThemeToggle'
 import { BuildingScreen, StateScreen } from '../components/states'
 import { useTheme } from '../theme'
@@ -14,6 +15,7 @@ const TABS = [
   { id: 'graph',         label: 'Graph' },
   { id: 'clusters',      label: 'Clusters' },
   { id: 'opportunities', label: 'Opps' },
+  { id: 'ask',           label: 'Ask' },
 ]
 
 // Escape every HTML-significant character. The brief markdown is LLM-generated
@@ -43,6 +45,7 @@ export default function ProjectPage() {
   const [cy, setCy] = useState(null)
   const [panelOpen, setPanelOpen] = useState(false)
   const [brief, setBrief] = useState(null)
+  const [askResult, setAskResult] = useState(null)
 
   const briefMutation = useMutation({
     mutationFn: () => getBrief(id),
@@ -72,6 +75,38 @@ export default function ProjectPage() {
     const file = e.target.files?.[0]
     if (file) uploadMutation.mutate(file)
     e.target.value = ''
+  }
+
+  const highlightNodes = (ids) => {
+    if (!cy) return
+    cy.nodes().removeClass('highlighted')
+    cy.edges().removeClass('highlighted')
+    cy.elements().removeClass('faded')
+    let coll = cy.collection()
+    ;(ids || []).forEach((nid) => { coll = coll.union(cy.getElementById(nid)) })
+    coll.addClass('highlighted')
+    coll.connectedEdges().addClass('highlighted')
+    cy._highlightedCluster = '__ask__'  // keep hover-fade from clearing it
+    if (coll.length) cy.animate({ fit: { eles: coll, padding: 60 }, duration: 400 })
+  }
+
+  const askMutation = useMutation({
+    mutationFn: (question) => askQuestion(id, question),
+    onSuccess: (data) => { setAskResult(data); highlightNodes(data.highlighted_nodes) },
+  })
+
+  const centreNode = (nid) => {
+    if (!cy) return
+    const n = cy.getElementById(nid)
+    if (n && n.length) cy.animate({ center: { eles: n }, zoom: Math.max(cy.zoom(), 1.1), duration: 300 })
+  }
+
+  const clearAskHighlight = () => {
+    if (cy && cy._highlightedCluster === '__ask__') {
+      cy.nodes().removeClass('highlighted')
+      cy.edges().removeClass('highlighted')
+      cy._highlightedCluster = null
+    }
   }
 
   const { data: project, error: projErr, refetch: refetchProject } = useQuery({
@@ -129,13 +164,15 @@ export default function ProjectPage() {
 
   const handleTabClick = (tabId) => {
     setTab(tabId)
-    if (tabId === 'clusters') setPanelOpen(true)
+    if (tabId !== 'ask') clearAskHighlight()
+    if (tabId === 'clusters' || tabId === 'ask') setPanelOpen(true)
     else if (tabId === 'graph') { if (!selectedId) setPanelOpen(false) }
     else setPanelOpen(false)
   }
 
   const closePanel = () => {
     setPanelOpen(false)
+    if (tab === 'ask') clearAskHighlight()
     if (tab === 'clusters') {
       setHighlightClusterId(null)
       if (cy) {
@@ -181,7 +218,7 @@ export default function ProjectPage() {
   const oppCount  = oppsData?.opportunities?.length ?? 0
   const nodeCount = graphData?.stats?.node_count ?? 0
   const isBuilding = project.status === 'building' || project.status === 'pending'
-  const sidebarLabel = tab === 'clusters' ? 'Clusters' : 'Entity detail'
+  const sidebarLabel = tab === 'clusters' ? 'Clusters' : tab === 'ask' ? 'Ask the graph' : 'Entity detail'
 
   return (
     <div className={`project-page${panelOpen ? ' panel-open' : ''}`}>
@@ -305,6 +342,14 @@ export default function ProjectPage() {
                 activeClusterId={highlightClusterId}
                 onClusterClick={handleClusterClick}
                 loading={isReady && !clustersData}
+              />
+            ) : tab === 'ask' ? (
+              <AskPanel
+                onAsk={(q) => askMutation.mutate(q)}
+                pending={askMutation.isPending}
+                result={askResult}
+                error={askMutation.isError ? (askMutation.error?.message || 'Ask failed') : ''}
+                onPickSource={centreNode}
               />
             ) : (
               <EntityCard entity={entityData} loading={!!selectedId && !entityData} />
