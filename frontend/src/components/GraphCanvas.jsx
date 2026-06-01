@@ -51,6 +51,8 @@ function makeStylesheet() {
         'text-outline-color': outline,
         'text-outline-width': 2,
         'border-width': 0,
+        'overlay-padding': 8,
+        'overlay-opacity': 0,
         'transition-property': 'border-width, border-color, opacity, background-color',
         'transition-duration': '0.15s',
       },
@@ -85,6 +87,9 @@ const COLA = {
 }
 
 // Live layout started on grab — runs until the node is released.
+// handleDisconnected:false puts ALL nodes in one physics simulation, so
+// dragging any node creates ripples across the whole graph (including small
+// isolated nodes that have no direct edges to the dragged one).
 // ungrabifyWhileSimulating must be false so the user can keep dragging.
 const COLA_LIVE = {
   name: 'cola',
@@ -92,10 +97,9 @@ const COLA_LIVE = {
   refresh: 1,
   infinite: true,
   fit: false,
-  nodeSpacing: 10,
-  edgeLength: 95,
-  handleDisconnected: true,
-  convergenceThreshold: 0.01,
+  nodeSpacing: 22,
+  edgeLength: 85,
+  handleDisconnected: false,
   ungrabifyWhileSimulating: false,
 }
 
