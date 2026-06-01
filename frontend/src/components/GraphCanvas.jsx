@@ -67,6 +67,8 @@ function makeStylesheet() {
   ]
 }
 
+// Initial layout — locks grabbing while settling so accidental drags
+// during the first animation don't disturb the physics.
 const COLA = {
   name: 'cola',
   animate: true,
@@ -80,6 +82,21 @@ const COLA = {
   convergenceThreshold: 0.04,
   maxSimulationTime: 1400,
   ungrabifyWhileSimulating: true,
+}
+
+// Live layout started on grab — runs until the node is released.
+// ungrabifyWhileSimulating must be false so the user can keep dragging.
+const COLA_LIVE = {
+  name: 'cola',
+  animate: true,
+  refresh: 1,
+  infinite: true,
+  fit: false,
+  nodeSpacing: 10,
+  edgeLength: 95,
+  handleDisconnected: true,
+  convergenceThreshold: 0.01,
+  ungrabifyWhileSimulating: false,
 }
 
 
@@ -117,8 +134,8 @@ export default function GraphCanvas({
   selectedId, onNodeClick, onCyInit,
 }) {
   const cyRef = useRef(null)
-  // Keep a stable ref to onNodeClick so event handlers registered at init
-  // always call the current prop without needing to re-register.
+  const liveLayout = useRef(null)
+  // Stable ref so Cytoscape event handlers always call the current prop.
   const onNodeClickRef = useRef(onNodeClick)
   useEffect(() => { onNodeClickRef.current = onNodeClick }, [onNodeClick])
 
@@ -162,9 +179,22 @@ export default function GraphCanvas({
       clearTimeout(hoverTimer)
       cy.batch(() => cy.elements().removeClass('faded'))
     })
-    // Nodes are freely draggable after the initial layout — no live physics
-    // during drag avoids blocking the main thread on every mousemove event.
+    // Grab → start infinite physics so connected nodes follow like rubber bands.
+    // Uses grab (fires once on mousedown) not drag (fires on every mousemove),
+    // so there's no need for a re-entry guard and no repeated layout restarts.
+    // Disabled under prefers-reduced-motion (M-1).
+    cy.on('grab', 'node', () => {
+      if (prefersReducedMotion) return
+      liveLayout.current = cy.layout(COLA_LIVE)
+      liveLayout.current.run()
+    })
+    cy.on('free', 'node', () => {
+      if (liveLayout.current) { liveLayout.current.stop(); liveLayout.current = null }
+    })
   }, [onCyInit])
+
+  // Stop live layout if the component unmounts while a node is being dragged.
+  useEffect(() => () => { if (liveLayout.current) liveLayout.current.stop() }, [])
 
   useEffect(() => {
     const cy = cyRef.current
