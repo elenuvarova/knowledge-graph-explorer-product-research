@@ -1,20 +1,20 @@
 """OpenAlex API — concepts, works (papers), and institutions."""
-import requests
+import os
+from sources.http import get_json
 
 _BASE = "https://api.openalex.org"
+# Polite pool: a real contact email gets a faster, more reliable rate limit.
+# Set OPENALEX_MAILTO in the environment for production.
+_MAILTO = os.getenv("OPENALEX_MAILTO", "kge-research@example.com")
 _HEADERS = {
-    # Polite pool: faster rate limit when you include a contact email
-    "User-Agent": "KnowledgeGraphExplorer/1.0 (mailto:user@example.com)",
+    "User-Agent": f"KnowledgeGraphExplorer/1.0 (mailto:{_MAILTO})",
 }
 
 
 def _get(path: str, params: dict) -> dict:
-    try:
-        resp = requests.get(f"{_BASE}{path}", params=params, headers=_HEADERS, timeout=10)
-        resp.raise_for_status()
-        return resp.json()
-    except Exception:
-        return {}
+    params = {**params, "mailto": _MAILTO}
+    data = get_json(f"{_BASE}{path}", params=params, headers=_HEADERS, timeout=10)
+    return data or {}
 
 
 def search_concepts(query: str, per_page: int = 15) -> list[dict]:

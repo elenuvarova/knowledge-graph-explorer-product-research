@@ -1,6 +1,6 @@
 """Wikidata entity search and SPARQL relationship expansion."""
 import time
-import requests
+from sources.http import get_json
 
 _SEARCH = "https://www.wikidata.org/w/api.php"
 _SPARQL = "https://query.wikidata.org/sparql"
@@ -59,50 +59,42 @@ LIMIT 1
 
 def search_entities(term: str, limit: int = 3) -> list[dict]:
     """Return top Wikidata items matching a search term."""
-    try:
-        resp = requests.get(
-            _SEARCH,
-            params={
-                "action": "wbsearchentities",
-                "search": term,
-                "language": "en",
-                "type": "item",
-                "limit": str(limit),
-                "format": "json",
-            },
-            headers={"User-Agent": _HEADERS["User-Agent"]},
-            timeout=8,
-        )
-        resp.raise_for_status()
-        return resp.json().get("search", [])
-    except Exception:
-        return []
+    data = get_json(
+        _SEARCH,
+        params={
+            "action": "wbsearchentities",
+            "search": term,
+            "language": "en",
+            "type": "item",
+            "limit": str(limit),
+            "format": "json",
+        },
+        headers={"User-Agent": _HEADERS["User-Agent"]},
+        timeout=8,
+    )
+    return (data or {}).get("search", [])
 
 
 def get_related(qid: str) -> list[dict]:
     """Run SPARQL to get entities related to a QID."""
     time.sleep(0.5)  # polite pause — Wikidata rate limit is ~1 req/sec
-    try:
-        resp = requests.get(
-            _SPARQL,
-            params={"query": _RELATED_QUERY.format(qid=qid), "format": "json"},
-            headers=_HEADERS,
-            timeout=12,
-        )
-        resp.raise_for_status()
-        bindings = resp.json().get("results", {}).get("bindings", [])
-        results = []
-        for b in bindings:
-            uri = b.get("target", {}).get("value", "")
-            label = b.get("targetLabel", {}).get("value", "")
-            rel = b.get("relType", {}).get("value", "related_to")
-            if not label or label.startswith("Q"):  # skip unlabelled items
-                continue
-            qid_target = uri.rsplit("/", 1)[-1]
-            results.append({"qid": qid_target, "label": label, "relation": rel})
-        return results
-    except Exception:
-        return []
+    data = get_json(
+        _SPARQL,
+        params={"query": _RELATED_QUERY.format(qid=qid), "format": "json"},
+        headers=_HEADERS,
+        timeout=12,
+    )
+    bindings = (data or {}).get("results", {}).get("bindings", [])
+    results = []
+    for b in bindings:
+        uri = b.get("target", {}).get("value", "")
+        label = b.get("targetLabel", {}).get("value", "")
+        rel = b.get("relType", {}).get("value", "related_to")
+        if not label or label.startswith("Q"):  # skip unlabelled items
+            continue
+        qid_target = uri.rsplit("/", 1)[-1]
+        results.append({"qid": qid_target, "label": label, "relation": rel})
+    return results
 
 
 def fetch_entities_for_terms(terms: list[str]) -> list[dict]:

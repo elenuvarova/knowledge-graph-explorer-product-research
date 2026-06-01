@@ -1,8 +1,10 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, lazy, Suspense } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getProject, getGraph, getClusters, getOpportunities, getEntity, getBrief, buildProject, uploadDocument, askQuestion } from '../api'
-import GraphCanvas from '../components/GraphCanvas'
+
+// Cytoscape + cola are heavy; load them only when a graph actually renders.
+const GraphCanvas = lazy(() => import('../components/GraphCanvas'))
 import EntityCard from '../components/EntityCard'
 import ClusterPanel from '../components/ClusterPanel'
 import OpportunityBoard from '../components/OpportunityBoard'
@@ -309,7 +311,7 @@ export default function ProjectPage() {
           {/* Canvas — always mounted so cluster highlights persist across tabs */}
           <div className="graph-canvas-wrap">
             {graphData ? (
-              <>
+              <Suspense fallback={<div className="full-center"><div className="spinner" /></div>}>
                 <GraphCanvas
                   nodes={graphData.nodes}
                   edges={graphData.edges}
@@ -319,7 +321,7 @@ export default function ProjectPage() {
                   onCyInit={setCy}
                 />
                 <div className="graph-hint">Drag nodes · scroll to zoom · double-click to fit</div>
-              </>
+              </Suspense>
             ) : (
               <div className="full-center"><div className="spinner" /></div>
             )}

@@ -7,6 +7,19 @@ import os
 
 _MODEL = "llama-3.3-70b-versatile"
 
+# Map the goal codes the frontend sends to human-readable labels.
+_GOAL_LABELS = {
+    "market": "Market understanding",
+    "opportunity": "Product opportunity",
+    "competitors": "Competitor landscape",
+    "policy": "Policy / regulation",
+    "research": "Research landscape",
+}
+
+
+def _goal_label(goal) -> str:
+    return _GOAL_LABELS.get(goal, goal or "market understanding")
+
 _SYSTEM = (
     "You are a senior product strategist and researcher. "
     "You write clear, structured research briefs for product managers exploring new domains. "
@@ -38,7 +51,7 @@ def generate_brief(project, entities, clusters, opportunities) -> str:
     )
 
     context = (
-        f'Topic: "{project.topic}" | Region: {project.region or "Global"} | Goal: {project.goal or "market understanding"}\n'
+        f'Topic: "{project.topic}" | Region: {project.region or "Global"} | Goal: {_goal_label(project.goal)}\n'
         f"Graph: {len(entities)} entities across {len(clusters)} clusters\n\n"
         f"TOP ENTITIES:\n{entities_text}\n\n"
         f"CLUSTERS:\n{clusters_text}\n\n"
@@ -104,7 +117,7 @@ def _template_brief(project, top_entities, clusters, top_opps) -> str:
 
     return f"""# Research Brief: {project.topic}
 
-*{today} · Region: {project.region or 'Global'} · Goal: {project.goal or 'market understanding'}*
+*{today} · Region: {project.region or 'Global'} · Goal: {_goal_label(project.goal)}*
 
 ---
 

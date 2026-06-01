@@ -55,18 +55,32 @@ def trigger_build(project_id: str, background_tasks: BackgroundTasks, db: Sessio
     return {"status": "building", "project_id": project_id}
 
 
+# project_id → (version_key, payload). Cleared implicitly when the project's
+# updated_at changes (i.e. after any rebuild/upload), so the LLM brief is only
+# regenerated when the underlying graph actually changed.
+_brief_cache: dict = {}
+
+
 @router.get("/{project_id}/brief")
 def get_brief(project_id: str, db: Session = Depends(get_db)):
     project = _get_or_404(project_id, db)
     if project.status != "ready":
         raise HTTPException(status_code=400, detail="Project is not ready yet")
+
+    version = project.updated_at.isoformat() if project.updated_at else ""
+    cached = _brief_cache.get(project_id)
+    if cached and cached[0] == version:
+        return cached[1]
+
     entities = db.query(Entity).filter_by(project_id=project_id).all()
     clusters = db.query(Cluster).filter_by(project_id=project_id).all()
     opportunities = db.query(Opportunity).filter_by(project_id=project_id).all()
     from ai.brief_generator import generate_brief
     markdown = generate_brief(project, entities, clusters, opportunities)
     slug = project.topic.lower().replace(" ", "-")[:30]
-    return {"markdown": markdown, "filename": f"brief-{slug}.md"}
+    payload = {"markdown": markdown, "filename": f"brief-{slug}.md"}
+    _brief_cache[project_id] = (version, payload)
+    return payload
 
 
 @router.post("/{project_id}/ask")
