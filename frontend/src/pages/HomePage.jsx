@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getProjects, createProject, buildProject, deleteProject } from '../api'
+import ThemeToggle from '../components/ThemeToggle'
+import { InlineError, Toast, StateScreen } from '../components/states'
 
 const GOALS = [
   { value: 'market', label: 'Market understanding' },
@@ -17,6 +19,17 @@ function StatusBadge({ status }) {
   return <span className={`badge badge-${status}`}>{status}</span>
 }
 
+function ProjectsSkeleton() {
+  return (
+    <div className="recent-projects">
+      <div className="skeleton skeleton-line" style={{ width: '30%', height: 10, marginBottom: 16 }} />
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="skeleton skeleton-card" style={{ height: 52 }} />
+      ))}
+    </div>
+  )
+}
+
 export default function HomePage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -24,8 +37,9 @@ export default function HomePage() {
   const [region, setRegion] = useState('Global')
   const [goal, setGoal] = useState('opportunity')
   const [err, setErr] = useState('')
+  const [toast, setToast] = useState('')
 
-  const { data: projectsData } = useQuery({
+  const { data: projectsData, isLoading, isError, refetch } = useQuery({
     queryKey: ['projects'],
     queryFn: getProjects,
   })
@@ -40,18 +54,19 @@ export default function HomePage() {
       qc.invalidateQueries({ queryKey: ['projects'] })
       navigate(`/project/${project.id}`)
     },
-    onError: (e) => setErr(e.message),
+    onError: (e) => setErr(e.message || 'Could not start the build. Please try again.'),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id) => deleteProject(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['projects'] }),
+    onError: () => setToast('Could not delete the project. Please try again.'),
   })
 
   const handleSubmit = (e) => {
     e.preventDefault()
     setErr('')
-    if (!topic.trim()) { setErr('Enter a topic first'); return }
+    if (!topic.trim()) { setErr('Enter a topic to explore first.'); return }
     startMutation.mutate()
   }
 
@@ -60,15 +75,20 @@ export default function HomePage() {
 
   return (
     <div className="home">
+      <div className="home-topbar">
+        <ThemeToggle />
+      </div>
+
       <div className="home-hero">
         <h1>Knowledge Graph Explorer</h1>
-        <p>Enter a domain — get a structured map of concepts, research, organisations, and product opportunities.</p>
+        <p>Enter a domain — get a structured map of its concepts, research, organisations and product opportunities.</p>
       </div>
 
       <form className="form-card" onSubmit={handleSubmit}>
         <div className="form-row">
-          <label>Topic</label>
+          <label htmlFor="topic">Topic</label>
           <textarea
+            id="topic"
             rows={2}
             placeholder="e.g. AI tutoring, CSRD reporting, e-waste circularity…"
             value={topic}
@@ -78,42 +98,59 @@ export default function HomePage() {
         </div>
         <div className="form-selects">
           <div className="form-row">
-            <label>Region</label>
-            <select value={region} onChange={(e) => setRegion(e.target.value)} disabled={busy}>
-              {REGIONS.map(r => <option key={r}>{r}</option>)}
+            <label htmlFor="region">Region</label>
+            <select id="region" value={region} onChange={(e) => setRegion(e.target.value)} disabled={busy}>
+              {REGIONS.map((r) => <option key={r}>{r}</option>)}
             </select>
           </div>
           <div className="form-row">
-            <label>Research goal</label>
-            <select value={goal} onChange={(e) => setGoal(e.target.value)} disabled={busy}>
-              {GOALS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
+            <label htmlFor="goal">Research goal</label>
+            <select id="goal" value={goal} onChange={(e) => setGoal(e.target.value)} disabled={busy}>
+              {GOALS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
             </select>
           </div>
         </div>
-        {err && <p className="error-msg">{err}</p>}
+
+        <InlineError message={err} onDismiss={() => setErr('')} />
+
         <button className="btn btn-primary btn-full" type="submit" disabled={busy}>
-          {busy ? <><span className="spinner" style={{ width: 14, height: 14 }} />Building map…</> : 'Build knowledge map →'}
+          {busy ? <><span className="spinner spinner-sm" />Building map…</> : 'Build knowledge map →'}
         </button>
       </form>
 
-      {projects.length > 0 && (
+      {isLoading && <ProjectsSkeleton />}
+
+      {isError && (
+        <div className="recent-projects">
+          <StateScreen
+            variant="error"
+            title="Couldn't load your projects"
+            message="The server didn't respond. Check your connection and try again."
+            actions={<button className="btn btn-secondary" onClick={() => refetch()}>Retry</button>}
+          />
+        </div>
+      )}
+
+      {!isLoading && !isError && projects.length > 0 && (
         <div className="recent-projects">
           <h2>Recent projects</h2>
-          {projects.map(p => (
-            <div key={p.id} className="project-row" style={{ cursor: 'pointer' }}
-              onClick={() => navigate(`/project/${p.id}`)}>
+          {projects.map((p) => (
+            <div key={p.id} className="project-row" onClick={() => navigate(`/project/${p.id}`)}>
               <span className="project-row-name">{p.topic}</span>
               <span className="project-row-meta">{p.region}</span>
               <StatusBadge status={p.status} />
               <button
-                className="btn btn-danger"
-                style={{ padding: '0.25rem 0.6rem', fontSize: 12 }}
+                className="btn btn-danger btn-sm"
+                disabled={deleteMutation.isPending}
                 onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(p.id) }}
+                aria-label={`Delete ${p.topic}`}
               >✕</button>
             </div>
           ))}
         </div>
       )}
+
+      <Toast message={toast} onClose={() => setToast('')} />
     </div>
   )
 }

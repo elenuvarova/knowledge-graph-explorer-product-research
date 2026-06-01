@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useQuery, useMutation } from '@tanstack/react-query'
-import { getProject, getGraph, getClusters, getOpportunities, getEntity, getBrief } from '../api'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getProject, getGraph, getClusters, getOpportunities, getEntity, getBrief, buildProject } from '../api'
 import GraphCanvas from '../components/GraphCanvas'
 import EntityCard from '../components/EntityCard'
 import ClusterPanel from '../components/ClusterPanel'
 import OpportunityBoard from '../components/OpportunityBoard'
+import ThemeToggle from '../components/ThemeToggle'
+import { BuildingScreen, StateScreen } from '../components/states'
+import { useTheme } from '../theme'
 
 const TABS = [
   { id: 'graph',         label: 'Graph' },
@@ -31,6 +34,8 @@ function StatusBadge({ status }) {
 
 export default function ProjectPage() {
   const { id } = useParams()
+  const qc = useQueryClient()
+  const { theme } = useTheme()
   const [tab, setTab] = useState('graph')
   const [selectedId, setSelectedId] = useState(null)
   const [highlightClusterId, setHighlightClusterId] = useState(null)
@@ -44,36 +49,30 @@ export default function ProjectPage() {
     onError: (e) => alert(`Could not generate brief: ${e.message}`),
   })
 
-  const { data: project, error: projErr } = useQuery({
+  const rebuildMutation = useMutation({
+    mutationFn: () => buildProject(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['project', id] }),
+  })
+
+  const { data: project, error: projErr, refetch: refetchProject } = useQuery({
     queryKey: ['project', id],
     queryFn: () => getProject(id),
-    refetchInterval: (q) => q.state.data?.status === 'building' ? 2500 : false,
+    refetchInterval: (q) => (q.state.data?.status === 'building' ? 2500 : false),
   })
 
   const isReady = project?.status === 'ready'
 
   const { data: graphData } = useQuery({
-    queryKey: ['graph', id],
-    queryFn: () => getGraph(id),
-    enabled: isReady,
+    queryKey: ['graph', id], queryFn: () => getGraph(id), enabled: isReady,
   })
-
   const { data: clustersData } = useQuery({
-    queryKey: ['clusters', id],
-    queryFn: () => getClusters(id),
-    enabled: isReady,
+    queryKey: ['clusters', id], queryFn: () => getClusters(id), enabled: isReady,
   })
-
   const { data: oppsData } = useQuery({
-    queryKey: ['opportunities', id],
-    queryFn: () => getOpportunities(id),
-    enabled: isReady,
+    queryKey: ['opportunities', id], queryFn: () => getOpportunities(id), enabled: isReady,
   })
-
   const { data: entityData } = useQuery({
-    queryKey: ['entity', id, selectedId],
-    queryFn: () => getEntity(id, selectedId),
-    enabled: !!selectedId,
+    queryKey: ['entity', id, selectedId], queryFn: () => getEntity(id, selectedId), enabled: !!selectedId,
   })
 
   const handleNodeClick = (nodeData) => {
@@ -93,15 +92,16 @@ export default function ProjectPage() {
     setPanelOpen(!isDeselect)
 
     if (!cy) return
+    cy.elements().removeClass('faded')
     cy.nodes().removeClass('highlighted')
     cy.edges().removeClass('highlighted')
 
     if (!isDeselect) {
-      cy.nodes(`[cluster_id = "${clusterId}"]`).addClass('highlighted')
-      cy.nodes(`[cluster_id = "${clusterId}"]`).connectedEdges().addClass('highlighted')
+      const inCluster = cy.nodes(`[cluster_id = "${clusterId}"]`)
+      inCluster.addClass('highlighted')
+      inCluster.connectedEdges().addClass('highlighted')
       cy._highlightedCluster = clusterId
-      const targets = cy.nodes(`[cluster_id = "${clusterId}"]`)
-      if (targets.length) cy.animate({ fit: { eles: targets, padding: 60 }, duration: 400 })
+      if (inCluster.length) cy.animate({ fit: { eles: inCluster, padding: 60 }, duration: 400 })
     } else {
       cy._highlightedCluster = null
     }
@@ -109,13 +109,9 @@ export default function ProjectPage() {
 
   const handleTabClick = (tabId) => {
     setTab(tabId)
-    if (tabId === 'clusters') {
-      setPanelOpen(true)
-    } else if (tabId === 'graph') {
-      if (!selectedId) setPanelOpen(false)
-    } else {
-      setPanelOpen(false)
-    }
+    if (tabId === 'clusters') setPanelOpen(true)
+    else if (tabId === 'graph') { if (!selectedId) setPanelOpen(false) }
+    else setPanelOpen(false)
   }
 
   const closePanel = () => {
@@ -125,18 +121,46 @@ export default function ProjectPage() {
       if (cy) {
         cy.nodes().removeClass('highlighted')
         cy.edges().removeClass('highlighted')
+        cy.elements().removeClass('faded')
         cy._highlightedCluster = null
       }
     }
   }
 
-  if (projErr) return <div className="home"><p className="error-msg">Failed to load project.</p></div>
-  if (!project) return <div className="full-center"><div className="spinner" /></div>
+  // ── Project-level error / not-found ──
+  if (projErr) {
+    const notFound = /404/.test(projErr.message || '')
+    return (
+      <div className="project-page">
+        <div className="project-header">
+          <Link to="/" className="project-header-back" title="Back">←</Link>
+          <span className="project-header-title">Project</span>
+          <div className="header-actions"><ThemeToggle size="sm" /></div>
+        </div>
+        <StateScreen
+          variant="error"
+          title={notFound ? 'Project not found' : 'Could not load this project'}
+          message={notFound
+            ? "This project doesn't exist or may have been deleted."
+            : "The server didn't respond. Check your connection and try again."}
+          actions={
+            <>
+              {!notFound && <button className="btn btn-primary" onClick={() => refetchProject()}>Retry</button>}
+              <Link className="btn btn-secondary" to="/">Go home</Link>
+            </>
+          }
+        />
+      </div>
+    )
+  }
+
+  if (!project) {
+    return <div className="full-center" style={{ minHeight: '100vh' }}><div className="spinner" /></div>
+  }
 
   const oppCount  = oppsData?.opportunities?.length ?? 0
   const nodeCount = graphData?.stats?.node_count ?? 0
   const isBuilding = project.status === 'building' || project.status === 'pending'
-
   const sidebarLabel = tab === 'clusters' ? 'Clusters' : 'Entity detail'
 
   return (
@@ -146,86 +170,88 @@ export default function ProjectPage() {
       <div className="project-header">
         <Link to="/" className="project-header-back" title="Back">←</Link>
         <span className="project-header-title">{project.topic}</span>
-        {nodeCount > 0 && (
-          <span className="project-header-count">{nodeCount} nodes</span>
-        )}
+        {nodeCount > 0 && <span className="project-header-count">{nodeCount} nodes</span>}
         <StatusBadge status={project.status} />
-        {isReady && (
-          <button
-            className="btn btn-secondary"
-            style={{ padding: '0.25rem 0.7rem', fontSize: 'var(--text-xs)', flexShrink: 0 }}
-            onClick={() => briefMutation.mutate()}
-            disabled={briefMutation.isPending}
-          >
-            {briefMutation.isPending ? '…' : 'Brief'}
-          </button>
-        )}
+        <div className="header-actions">
+          {isReady && (
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => briefMutation.mutate()}
+              disabled={briefMutation.isPending}
+            >
+              {briefMutation.isPending ? '…' : 'Brief'}
+            </button>
+          )}
+          <ThemeToggle size="sm" />
+        </div>
       </div>
 
-      {/* ── Tab bar (separate row) ── */}
+      {/* ── Tab bar ── */}
       <div className="project-tab-bar">
-        {TABS.map(t => (
+        {TABS.map((t) => (
           <button
             key={t.id}
             className={`tab-btn${tab === t.id ? ' active' : ''}`}
             onClick={() => handleTabClick(t.id)}
           >
             {t.label}
-            {t.id === 'opportunities' && oppCount > 0 && (
-              <span className="tab-count">{oppCount}</span>
-            )}
+            {t.id === 'opportunities' && oppCount > 0 && <span className="tab-count">{oppCount}</span>}
           </button>
         ))}
       </div>
 
-      {/* ── Building banner ── */}
-      {project.status === 'building' && (
-        <div className="building-banner">
-          <span className="spinner" style={{ width: 14, height: 14 }} />
-          Fetching Wikidata and OpenAlex, building graph… ~30 seconds
-        </div>
-      )}
-
-      {/* ── Error banner ── */}
-      {project.status === 'error' && (
-        <div className="building-banner" style={{ color: 'var(--red)', background: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.2)' }}>
-          Build failed: {project.error_message || 'unknown error'}
-        </div>
-      )}
-
       {/* ── Body ── */}
       {isBuilding ? (
-        <div className="full-center">
-          <div className="loading-wrap">
-            <div className="spinner" />
-            <span>Building knowledge graph…</span>
-          </div>
-        </div>
+        <BuildingScreen />
+
+      ) : project.status === 'error' ? (
+        <StateScreen
+          variant="error"
+          title="Build failed"
+          message={project.error_message || 'Something went wrong while building this graph.'}
+          actions={
+            <>
+              <button className="btn btn-primary" onClick={() => rebuildMutation.mutate()} disabled={rebuildMutation.isPending}>
+                {rebuildMutation.isPending ? 'Restarting…' : 'Try again'}
+              </button>
+              <Link className="btn btn-secondary" to="/">Go home</Link>
+            </>
+          }
+        />
+
+      ) : isReady && graphData && nodeCount === 0 ? (
+        <StateScreen
+          variant="empty"
+          title="No graph to show"
+          message="This topic didn't return enough open data to build a graph. Try a broader or more specific topic."
+          actions={<Link className="btn btn-secondary" to="/">New topic</Link>}
+        />
 
       ) : tab === 'opportunities' ? (
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <OpportunityBoard opportunities={oppsData?.opportunities ?? []} />
-        </div>
+        <OpportunityBoard opportunities={oppsData?.opportunities ?? []} loading={isReady && !oppsData} />
 
       ) : (
         <div className="graph-view">
-          {/* Canvas — always rendered so cluster highlights persist across tabs */}
+          {/* Canvas — always mounted so cluster highlights persist across tabs */}
           <div className="graph-canvas-wrap">
             {graphData ? (
-              <GraphCanvas
-                nodes={graphData.nodes}
-                edges={graphData.edges}
-                selectedId={selectedId}
-                highlightClusterId={highlightClusterId}
-                onNodeClick={handleNodeClick}
-                onCyInit={setCy}
-              />
-            ) : isReady ? (
+              <>
+                <GraphCanvas
+                  nodes={graphData.nodes}
+                  edges={graphData.edges}
+                  theme={theme}
+                  selectedId={selectedId}
+                  onNodeClick={handleNodeClick}
+                  onCyInit={setCy}
+                />
+                <div className="graph-hint">Drag nodes · scroll to zoom · double-click to fit</div>
+              </>
+            ) : (
               <div className="full-center"><div className="spinner" /></div>
-            ) : null}
+            )}
           </div>
 
-          {/* Backdrop — dims canvas when panel is open on mobile */}
+          {/* Backdrop — dims canvas when the panel is open on mobile */}
           <div className="panel-backdrop" onClick={closePanel} />
 
           {/* Sidebar / bottom sheet */}
@@ -241,23 +267,24 @@ export default function ProjectPage() {
                 clusters={clustersData?.clusters ?? []}
                 activeClusterId={highlightClusterId}
                 onClusterClick={handleClusterClick}
+                loading={isReady && !clustersData}
               />
             ) : (
-              <EntityCard entity={entityData} />
+              <EntityCard entity={entityData} loading={!!selectedId && !entityData} />
             )}
           </div>
         </div>
       )}
-      {/* Brief modal */}
+
+      {/* ── Brief modal ── */}
       {brief && (
         <div className="brief-overlay" onClick={() => setBrief(null)}>
-          <div className="brief-modal" onClick={e => e.stopPropagation()}>
+          <div className="brief-modal" onClick={(e) => e.stopPropagation()}>
             <div className="brief-modal-header">
               <span className="brief-modal-title">Research Brief</span>
-              <div style={{ display: 'flex', gap: 'var(--sp-2)' }}>
+              <div className="brief-modal-actions">
                 <button
-                  className="btn btn-secondary"
-                  style={{ padding: '0.25rem 0.7rem', fontSize: 'var(--text-xs)' }}
+                  className="btn btn-secondary btn-sm"
                   onClick={() => {
                     const blob = new Blob([brief.markdown], { type: 'text/markdown' })
                     const a = document.createElement('a')
@@ -267,17 +294,13 @@ export default function ProjectPage() {
                     URL.revokeObjectURL(a.href)
                   }}
                 >
-                  Download .md
+                  <span className="btn-label">Download</span> .md
                 </button>
                 <button
-                  className="btn btn-secondary"
-                  style={{ padding: '0.25rem 0.7rem', fontSize: 'var(--text-xs)' }}
+                  className="btn btn-secondary btn-sm"
                   onClick={() => {
                     const win = window.open('', '_blank')
-                    if (!win) {
-                      alert('Please allow pop-ups to print the brief.')
-                      return
-                    }
+                    if (!win) { alert('Please allow pop-ups to print the brief.'); return }
                     win.document.write(`<!DOCTYPE html><html><head><title>${escapeHtml(brief.filename)}</title>
 <style>
   body{font-family:system-ui,sans-serif;max-width:780px;margin:40px auto;padding:0 24px;color:#111;line-height:1.7}
@@ -299,13 +322,7 @@ export default function ProjectPage() {
                 >
                   Print
                 </button>
-                <button
-                  className="btn btn-secondary"
-                  style={{ padding: '0.25rem 0.7rem', fontSize: 'var(--text-xs)' }}
-                  onClick={() => setBrief(null)}
-                >
-                  ✕
-                </button>
+                <button className="btn btn-secondary btn-sm" onClick={() => setBrief(null)} aria-label="Close">✕</button>
               </div>
             </div>
             <pre className="brief-content">{brief.markdown}</pre>

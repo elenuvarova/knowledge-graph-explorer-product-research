@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { OppSkeleton, StateScreen } from './states'
 
 function RiskBadge({ level }) {
   return <span className={`badge risk-${level}`}>{level} risk</span>
@@ -15,7 +16,7 @@ function OppCard({ opp }) {
       </div>
 
       {opp.cluster_name && (
-        <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+        <div className="opp-cluster-meta">
           Cluster: {opp.cluster_name}
           {opp.cluster_size && <span> · {opp.cluster_size} nodes</span>}
         </div>
@@ -28,17 +29,13 @@ function OppCard({ opp }) {
           {opp.risks?.length > 0 && (
             <div>
               <div className="opp-section-label">Risks</div>
-              <ul className="opp-list">
-                {opp.risks.map((r, i) => <li key={i}>{r}</li>)}
-              </ul>
+              <ul className="opp-list">{opp.risks.map((r, i) => <li key={i}>{r}</li>)}</ul>
             </div>
           )}
           {opp.next_questions?.length > 0 && (
             <div>
               <div className="opp-section-label">Next research questions</div>
-              <ul className="opp-list">
-                {opp.next_questions.map((q, i) => <li key={i}>{q}</li>)}
-              </ul>
+              <ul className="opp-list">{opp.next_questions.map((q, i) => <li key={i}>{q}</li>)}</ul>
             </div>
           )}
         </>
@@ -53,12 +50,8 @@ function OppCard({ opp }) {
 
       <div className="opp-footer">
         <span>score {(opp.score || 0).toFixed(3)}</span>
-        {opp.generated_by_ai && <span style={{ color: 'var(--accent-bright)' }}>✦ AI</span>}
-        <button
-          className="btn btn-secondary"
-          style={{ padding: '0.2rem 0.6rem', fontSize: 11 }}
-          onClick={() => setExpanded(v => !v)}
-        >
+        {opp.generated_by_ai && <span className="opp-ai-flag">✦ AI</span>}
+        <button className="btn btn-secondary btn-sm" onClick={() => setExpanded((v) => !v)}>
           {expanded ? 'Less' : 'More'}
         </button>
       </div>
@@ -66,20 +59,24 @@ function OppCard({ opp }) {
   )
 }
 
-export default function OpportunityBoard({ opportunities = [] }) {
+export default function OpportunityBoard({ opportunities = [], loading }) {
+  if (loading) return <OppSkeleton />
+
   if (!opportunities.length) {
     return (
-      <div className="loading-wrap">
-        <p style={{ color: 'var(--text-muted)' }}>No opportunities scored yet.</p>
-      </div>
+      <StateScreen
+        variant="empty"
+        title="No opportunities yet"
+        message="This graph didn't surface scored product opportunities. Try a broader or more research-active topic."
+      />
     )
   }
 
   return (
-    <div className="opp-board" style={{ height: '100%', overflowY: 'auto' }}>
+    <div className="opp-board">
       <h3>Opportunities · {opportunities.length}</h3>
       <div className="opp-grid">
-        {opportunities.map(o => <OppCard key={o.id} opp={o} />)}
+        {opportunities.map((o) => <OppCard key={o.id} opp={o} />)}
       </div>
     </div>
   )

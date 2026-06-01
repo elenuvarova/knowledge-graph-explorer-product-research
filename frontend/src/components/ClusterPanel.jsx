@@ -1,18 +1,22 @@
-export default function ClusterPanel({ clusters = [], activeClusterId, onClusterClick }) {
+import { ClusterSkeleton } from './states'
+
+export default function ClusterPanel({ clusters = [], activeClusterId, onClusterClick, loading }) {
+  if (loading) return <ClusterSkeleton />
+
   if (!clusters.length) {
     return (
       <div className="cluster-panel">
-        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No clusters yet.</p>
+        <p className="cluster-hint">No clusters were detected for this graph.</p>
       </div>
     )
   }
 
-  const maxScore = Math.max(...clusters.map(c => c.opportunity_score || 0), 0.001)
+  const maxScore = Math.max(...clusters.map((c) => c.opportunity_score || 0), 0.001)
 
   return (
     <div className="cluster-panel">
       <h3>Clusters · {clusters.length}</h3>
-      {clusters.map(c => (
+      {clusters.map((c) => (
         <div
           key={c.id}
           className={`cluster-item${activeClusterId === c.cluster_id ? ' active' : ''}`}
@@ -25,18 +29,11 @@ export default function ClusterPanel({ clusters = [], activeClusterId, onCluster
             {c.product_count > 0 && <span>{c.product_count} products</span>}
           </div>
           <div className="cluster-bar">
-            <div
-              className="cluster-bar-fill"
-              style={{ width: `${(c.opportunity_score / maxScore) * 100}%` }}
-            />
+            <div className="cluster-bar-fill" style={{ width: `${(c.opportunity_score / maxScore) * 100}%` }} />
           </div>
         </div>
       ))}
-      {activeClusterId && (
-        <p style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: '0.5rem', padding: '0 0.25rem' }}>
-          Click the active cluster to deselect
-        </p>
-      )}
+      {activeClusterId && <p className="cluster-hint">Click the active cluster again to deselect.</p>}
     </div>
   )
 }
