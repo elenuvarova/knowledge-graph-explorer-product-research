@@ -12,6 +12,11 @@ RUN npm run build
 FROM python:3.12-slim AS runtime
 ENV NODE_ENV=production
 ENV PORT=3001
+# curl is required by the platform health check (python:3.12-slim ships neither
+# curl nor wget), so a healthy /api/health probe can mark the container live.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/backend
 COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
