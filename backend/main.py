@@ -17,6 +17,39 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Knowledge Graph Explorer", lifespan=lifespan)
 
+
+# ── Security headers ──────────────────────────────────────────────────────
+# The app serves its own SPA + API from one origin behind an HTTPS proxy, so
+# set a conservative baseline on every response. The CSP allows inline scripts
+# (the pre-paint theme switcher in index.html) and inline styles (React
+# style={{…}}), and blob: workers for the cola graph layout.
+_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data:; "
+    "font-src 'self'; "
+    "connect-src 'self'; "
+    "worker-src 'self' blob:; "
+    "object-src 'none'; "
+    "base-uri 'self'; "
+    "frame-ancestors 'none'"
+)
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    response.headers["Content-Security-Policy"] = _CSP
+    if os.getenv("NODE_ENV") == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+
 from routers import projects, graph  # noqa: E402 — after app is defined
 app.include_router(projects.router, prefix="/api")
 app.include_router(graph.router, prefix="/api")
@@ -28,7 +61,9 @@ def health():
         check_connection()
         return {"status": "ok", "db": db_kind}
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        # Log the detail server-side; don't leak DB/internal error text to clients.
+        print(f"[health] check failed: {exc}")
+        raise HTTPException(status_code=500, detail="Database connection failed")
 
 
 @app.get("/api/hello")

@@ -142,10 +142,12 @@ def _run_build(project_id: str):
     try:
         build_project_graph(project_id, db)
     except Exception as exc:
+        # Log the real exception; show the user a generic, non-leaking message.
+        print(f"[build] project={project_id} failed: {exc}")
         project = db.get(ResearchProject, project_id)
         if project:
             project.status = "error"
-            project.error_message = str(exc)
+            project.error_message = "Build failed unexpectedly. Please try again."
             db.commit()
     finally:
         db.close()
@@ -174,10 +176,11 @@ def _run_ingest(project_id: str, filename: str, content: bytes):
             project.status = "ready"
             db.commit()
     except Exception as exc:
+        print(f"[upload] project={project_id} failed: {exc}")
         project = db.get(ResearchProject, project_id)
         if project:
             project.status = "error"
-            project.error_message = f"Upload failed: {exc}"
+            project.error_message = "Upload processing failed. Please check the file and try again."
             db.commit()
     finally:
         db.close()
