@@ -27,7 +27,9 @@ function makeStylesheet() {
       selector: 'node',
       style: {
         'background-color': 'data(color)',
-        'label': 'data(label)',
+        // Only prominent nodes keep a persistent label so dense graphs stay
+        // readable; the rest reveal theirs on hover / selection / highlight.
+        'label': 'data(displayLabel)',
         'width': 'data(size)',
         'height': 'data(size)',
         'font-size': 9,
@@ -46,8 +48,10 @@ function makeStylesheet() {
         'transition-duration': '0.15s',
       },
     },
-    { selector: 'node:selected', style: { 'border-width': 3, 'border-color': select } },
-    { selector: 'node.highlighted', style: { 'border-width': 2.5, 'border-color': '#fbbf24' } },
+    // Reveal the full label whenever a node is focused (hover/select/highlight).
+    { selector: 'node.show-label', style: { 'label': 'data(label)', 'z-index': 19 } },
+    { selector: 'node:selected', style: { 'border-width': 3, 'border-color': select, 'label': 'data(label)', 'z-index': 20 } },
+    { selector: 'node.highlighted', style: { 'border-width': 2.5, 'border-color': '#fbbf24', 'label': 'data(label)', 'z-index': 18 } },
     { selector: 'node.faded', style: { 'opacity': 0.16 } },
     {
       selector: 'edge',
@@ -94,6 +98,15 @@ const COLA_LIVE = {
 
 
 function buildElements(nodes, edges) {
+  // Persistent labels go to the most-connected nodes only, so a dense graph
+  // isn't an unreadable wall of overlapping text. Everything else reveals its
+  // label on hover / selection / cluster highlight. Small graphs label all.
+  const N = nodes.length
+  const K = N <= 14 ? N : Math.min(28, Math.max(12, Math.round(N * 0.28)))
+  const labelled = new Set(
+    [...nodes].sort((a, b) => (b.degree || 0) - (a.degree || 0)).slice(0, K).map((n) => n.id)
+  )
+
   const els = []
   for (const n of nodes) {
     const degree = n.degree || 0
@@ -102,7 +115,8 @@ function buildElements(nodes, edges) {
     const label = n.name.length > 24 ? n.name.slice(0, 22) + '…' : n.name
     els.push({
       data: {
-        id: n.id, label, fullName: n.name, type: n.type,
+        id: n.id, label, displayLabel: labelled.has(n.id) ? label : '',
+        fullName: n.name, type: n.type,
         color: TYPE_COLOR[n.type] || DEFAULT_COLOR, size,
         cluster_id: n.cluster_id || '0',
         source: n.source, source_url: n.source_url, description: n.description,
@@ -173,13 +187,20 @@ export default function GraphCanvas({
       clearTimeout(hoverTimer)
       hoverTimer = setTimeout(() => {
         const keep = evt.target.closedNeighborhood()
-        cy.batch(() => cy.elements().difference(keep).addClass('faded'))
+        cy.batch(() => {
+          cy.elements().difference(keep).addClass('faded')
+          // Reveal labels for the hovered node and its neighbours.
+          keep.nodes().addClass('show-label')
+        })
       }, 40)
     })
     cy.on('mouseout', 'node', () => {
       if (cy._highlightedCluster) return
       clearTimeout(hoverTimer)
-      cy.batch(() => cy.elements().removeClass('faded'))
+      cy.batch(() => {
+        cy.elements().removeClass('faded')
+        cy.nodes().removeClass('show-label')
+      })
     })
     // No grab/free handlers needed — COLA_LIVE runs continuously after boot.
   }, [onCyInit])

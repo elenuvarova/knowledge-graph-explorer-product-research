@@ -1306,6 +1306,10 @@ button { cursor: pointer; font-family: inherit; font-size: var(--text-base); col
   .project-header { padding: var(--sp-2) var(--sp-3); min-height: 48px; }
   .project-header-count { display: none; }
 
+  /* Icon-only Upload / Brief on phones so the project title keeps its room */
+  .header-actions .btn-sm .btn-label { display: none; }
+  .header-actions .btn-sm { padding: var(--sp-2); }
+
   .project-tab-bar { padding: var(--sp-1) var(--sp-2); gap: 0; }
   .tab-btn { flex: 1; justify-content: center; padding: var(--sp-2) var(--sp-1); font-size: var(--text-xs); gap: var(--sp-1); }
 
