@@ -7,12 +7,14 @@ import { getProject, getGraph, getClusters, getOpportunities, getEntity, getBrie
 const GraphCanvas = lazy(() => import('../components/GraphCanvas'))
 
 import EntityCard from '../components/EntityCard'
+import GraphLegend from '../components/GraphLegend'
 import ClusterPanel from '../components/ClusterPanel'
 import OpportunityBoard from '../components/OpportunityBoard'
 import AskPanel from '../components/AskPanel'
 import ThemeToggle from '../components/ThemeToggle'
 import { BuildingScreen, StateScreen, Toast } from '../components/states'
 import { useTheme } from '../theme'
+import { renderMarkdown, escapeHtml } from '../markdown'
 
 const TABS = [
   { id: 'graph',         label: 'Graph' },
@@ -29,17 +31,6 @@ const BRIEF_TITLE_ID = 'brief-modal-title'
 const prefersReducedMotion =
   typeof window !== 'undefined' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-// Full HTML-escape — brief markdown (LLM output) and filename (user-supplied
-// topic) are written into a new window via document.write (stored XSS).
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
 
 function StatusBadge({ status }) {
   return <span className={`badge badge-${status}`}>{status}</span>
@@ -403,6 +394,7 @@ export default function ProjectPage() {
                   onNodeClick={handleNodeClick}
                   onCyInit={setCy}
                 />
+                <GraphLegend nodes={graphData.nodes} />
                 <div className="graph-hint" aria-hidden="true">Drag nodes · scroll to zoom · double-click to fit</div>
               </Suspense>
             ) : (
@@ -490,20 +482,26 @@ export default function ProjectPage() {
                   onClick={() => {
                     const win = window.open('', '_blank')
                     if (!win) { setToast('Allow pop-ups to print the brief.'); return }
-                    win.document.write(`<!DOCTYPE html><html lang="en"><head><title>${escapeHtml(brief.filename)}</title>
+                    win.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(brief.filename)}</title>
 <style>
-  body{font-family:system-ui,sans-serif;max-width:780px;margin:40px auto;padding:0 24px;color:#111;line-height:1.7}
-  h1{font-size:2em;border-bottom:2px solid #eee;padding-bottom:.3em;margin-bottom:.5em}
-  h2{font-size:1.35em;border-bottom:1px solid #eee;padding-bottom:.2em;margin-top:2em}
-  h3{font-size:1.1em;margin-top:1.5em}
-  table{border-collapse:collapse;width:100%;margin:1em 0}
+  body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;max-width:780px;margin:40px auto;padding:0 24px;color:#1a1f26;line-height:1.7}
+  h1{font-size:2em;border-bottom:2px solid #eee;padding-bottom:.3em;margin-bottom:.5em;letter-spacing:-.02em}
+  h2{font-size:1.35em;border-bottom:1px solid #eee;padding-bottom:.2em;margin:2em 0 .6em}
+  h3{font-size:1.1em;margin:1.5em 0 .4em}
+  p{margin:.7em 0}
+  ul,ol{margin:.7em 0;padding-left:1.4em}
+  li{margin:.25em 0}
+  strong{font-weight:600}
+  a{color:#6d28d9;text-decoration:none}
+  code{background:#f0f0f3;padding:1px 5px;border-radius:4px;font-size:.9em}
+  table{border-collapse:collapse;width:100%;margin:1em 0;font-size:.95em}
   th,td{border:1px solid #ddd;padding:7px 12px;text-align:left}
   th{background:#f7f7f7;font-weight:600}
   hr{border:none;border-top:1px solid #eee;margin:2em 0}
   @media print{body{margin:20px}button{display:none}}
 </style></head><body>
 <button onclick="window.print()" style="margin-bottom:24px;padding:8px 16px;cursor:pointer">Print / Save PDF</button>
-<pre style="font-family:system-ui,sans-serif;white-space:pre-wrap;font-size:15px">${escapeHtml(brief.markdown)}</pre>
+<article>${renderMarkdown(brief.markdown)}</article>
 </body></html>`)
                     win.document.close()
                   }}
@@ -513,7 +511,10 @@ export default function ProjectPage() {
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => setBrief(null)} aria-label="Close brief">✕</button>
               </div>
             </div>
-            <pre className="brief-content">{brief.markdown}</pre>
+            <div
+              className="brief-content brief-rendered"
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(brief.markdown) }}
+            />
           </div>
         </div>
       )}

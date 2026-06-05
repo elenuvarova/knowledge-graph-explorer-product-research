@@ -225,8 +225,12 @@ button { cursor: pointer; font-family: inherit; font-size: var(--text-base); col
 .home {
   max-width: 640px;
   width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0 auto;
   padding: var(--sp-6) var(--sp-6) var(--sp-12);
+  display: flex;
+  flex-direction: column;
 }
 
 .home-topbar {
@@ -234,7 +238,15 @@ button { cursor: pointer; font-family: inherit; font-size: var(--text-base); col
   align-items: center;
   justify-content: flex-end;
   height: 48px;
-  margin-bottom: var(--sp-8);
+  flex-shrink: 0;
+}
+
+/* Vertically centre the hero + form in the viewport; auto margins collapse
+   (no clipping) once the recent-projects list makes the content taller. */
+.home-body {
+  margin: auto 0;
+  width: 100%;
+  padding: var(--sp-8) 0;
 }
 
 .home-hero { margin-bottom: var(--sp-8); }
@@ -549,6 +561,65 @@ button { cursor: pointer; font-family: inherit; font-size: var(--text-base); col
   z-index: 5;
 }
 
+/* ── Graph legend (node-type colour key, top-left overlay) ── */
+.type-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.graph-legend {
+  position: absolute;
+  top: var(--sp-3);
+  left: var(--sp-3);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  z-index: 5;
+  max-width: 180px;
+  overflow: hidden;
+}
+
+.graph-legend-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+}
+.graph-legend-toggle:hover { color: var(--text); }
+.graph-legend-title {
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-eyebrow);
+}
+.graph-legend-caret { font-size: var(--text-2xs); color: var(--text-dim); }
+
+.graph-legend-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: 0 var(--sp-3) var(--sp-3);
+}
+.graph-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
 /* ── Sidebar ── */
 .graph-sidebar {
   width: 320px;
@@ -630,7 +701,9 @@ button { cursor: pointer; font-family: inherit; font-size: var(--text-base); col
 .entity-card-placeholder p   { font-size: var(--text-sm); line-height: var(--lh-relaxed); max-width: 24ch; }
 
 .entity-type-tag {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
   padding: 0.2rem var(--sp-3);
   border-radius: var(--radius-full);
   font-size: var(--text-2xs);
@@ -1153,14 +1226,70 @@ button { cursor: pointer; font-family: inherit; font-size: var(--text-base); col
 .brief-content {
   flex: 1;
   overflow-y: auto;
-  padding: var(--sp-6);
-  font-family: Georgia, 'Times New Roman', serif;
+  padding: var(--sp-6) var(--sp-8);
   font-size: var(--text-base);
   line-height: var(--lh-relaxed);
   color: var(--text);
-  white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
+
+/* ── Rendered markdown inside the brief modal ── */
+.brief-rendered > *:first-child { margin-top: 0; }
+.brief-rendered h1 {
+  font-size: var(--text-2xl);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-tight);
+  line-height: var(--lh-tight);
+  margin: 0 0 var(--sp-2);
+}
+.brief-rendered h2 {
+  font-size: var(--text-lg);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-tight);
+  margin: var(--sp-8) 0 var(--sp-3);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--border);
+}
+.brief-rendered h3 {
+  font-size: var(--text-base);
+  font-weight: var(--fw-semibold);
+  margin: var(--sp-5) 0 var(--sp-2);
+}
+.brief-rendered p { margin: var(--sp-3) 0; color: var(--text-muted); }
+.brief-rendered strong { color: var(--text); font-weight: var(--fw-semibold); }
+.brief-rendered a { color: var(--accent-bright); }
+.brief-rendered code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1px 5px;
+}
+.brief-rendered ul,
+.brief-rendered ol { margin: var(--sp-3) 0; padding-left: var(--sp-6); }
+.brief-rendered li { margin: var(--sp-1) 0; color: var(--text-muted); line-height: var(--lh-base); }
+.brief-rendered hr { border: none; border-top: 1px solid var(--border); margin: var(--sp-6) 0; }
+.brief-rendered table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: var(--sp-4) 0;
+  font-size: var(--text-sm);
+}
+.brief-rendered th,
+.brief-rendered td {
+  border: 1px solid var(--border);
+  padding: var(--sp-2) var(--sp-3);
+  text-align: left;
+  vertical-align: top;
+}
+.brief-rendered th {
+  background: var(--surface-2);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  white-space: nowrap;
+}
+.brief-rendered td { color: var(--text-muted); }
 
 /* ════════════════════════════════════════════════════════════
    MOBILE  ≤ 767px

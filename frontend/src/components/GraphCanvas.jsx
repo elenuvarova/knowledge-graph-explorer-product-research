@@ -2,21 +2,10 @@ import { useEffect, useMemo, useRef, useCallback } from 'react'
 import CytoscapeComponent from 'react-cytoscapejs'
 import Cytoscape from 'cytoscape'
 import cola from 'cytoscape-cola'
+import { TYPE_COLOR, DEFAULT_COLOR } from '../graphTypes'
 
 // Register the cola physics layout once (guard against HMR double-registration).
 try { Cytoscape.use(cola) } catch { /* already registered */ }
-
-const TYPE_COLOR = {
-  concept:      '#a78bfa',  // violet
-  organisation: '#34d399',  // emerald
-  institution:  '#60a5fa',  // blue
-  paper:        '#93c5fd',  // light blue
-  regulation:   '#fbbf24',  // amber
-  product:      '#f87171',  // red
-  person:       '#f472b6',  // pink
-  dataset:      '#2dd4bf',  // teal
-}
-const DEFAULT_COLOR = '#64748b'
 
 function cssVar(name, fallback) {
   try {

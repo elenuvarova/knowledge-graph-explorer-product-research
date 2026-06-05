@@ -1,15 +1,5 @@
 import { EntitySkeleton } from './states'
-
-const TYPE_LABEL = {
-  concept:      'Concept',
-  organisation: 'Organisation',
-  institution:  'Institution',
-  paper:        'Research paper',
-  regulation:   'Regulation',
-  product:      'Product',
-  person:       'Person',
-  dataset:      'Dataset',
-}
+import { typeColor, typeLabel } from '../graphTypes'
 
 function Metric({ label, value }) {
   return (
@@ -39,7 +29,10 @@ export default function EntityCard({ entity, loading, onNeighborClick }) {
 
   return (
     <div className="entity-card">
-      <div className="entity-type-tag">{TYPE_LABEL[entity.type] || entity.type}</div>
+      <div className="entity-type-tag">
+        <span className="type-dot" style={{ background: typeColor(entity.type) }} aria-hidden="true" />
+        {typeLabel(entity.type)}
+      </div>
       <div className="entity-name">{entity.fullName || entity.name}</div>
 
       {entity.description && <p className="entity-desc">{entity.description}</p>}

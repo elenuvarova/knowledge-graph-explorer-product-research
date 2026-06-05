@@ -79,6 +79,7 @@ export default function HomePage() {
         <ThemeToggle />
       </div>
 
+      <div className="home-body">
       <div className="home-hero">
         <h1>Knowledge Graph Explorer</h1>
         <p>Enter a domain — get a structured map of its concepts, research, organisations and product opportunities.</p>
@@ -159,6 +160,7 @@ export default function HomePage() {
           ))}
         </div>
       )}
+      </div>
 
       <Toast message={toast} onClose={() => setToast('')} />
     </div>

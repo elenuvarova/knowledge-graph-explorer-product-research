@@ -46,6 +46,14 @@ if os.getenv("NODE_ENV") == "production" and os.path.isdir(_public):
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def spa_fallback(full_path: str):
+        # Serve real static files at the web root (favicon, manifest, icons,
+        # robots.txt …) when they exist; otherwise fall back to the SPA shell so
+        # client-side routes resolve. Guards against path traversal by confining
+        # the resolved path to the public directory.
+        if full_path:
+            candidate = os.path.normpath(os.path.join(_public, full_path))
+            if candidate.startswith(_public + os.sep) and os.path.isfile(candidate):
+                return FileResponse(candidate)
         return FileResponse(os.path.join(_public, "index.html"))
 
 
