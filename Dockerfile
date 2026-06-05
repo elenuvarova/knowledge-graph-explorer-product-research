@@ -1,7 +1,11 @@
 FROM node:20-alpine AS frontend-build
+# Force a dev install so Vite (a devDependency) is available even when the
+# platform injects NODE_ENV=production as a build-time env (which would
+# otherwise make `npm install` skip devDependencies → "vite: not found").
+ENV NODE_ENV=development
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm install
+RUN npm install --include=dev
 COPY frontend/ ./
 RUN npm run build
 
