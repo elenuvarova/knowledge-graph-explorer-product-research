@@ -1,9 +1,21 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getProjects, createProject, buildProject, deleteProject } from '../api'
 import ThemeToggle from '../components/ThemeToggle'
+import HelpButton from '../components/HelpButton'
+import Tour from '../components/Tour'
 import { InlineError, Toast, StateScreen } from '../components/states'
+
+const TOUR_KEY = 'kge-tour-home'
+const HOME_TOUR = [
+  { target: '#topic', placement: 'bottom', title: 'Start with a topic',
+    body: 'Type any domain — “AI tutoring”, “CSRD reporting”, “e-waste circularity”. That’s all the tool needs to start.' },
+  { target: '.form-selects', placement: 'bottom', title: 'Focus it (optional)',
+    body: 'Narrow by region and pick a research goal to shape the opportunities the map surfaces.' },
+  { target: '.home-body .btn-primary', placement: 'top', title: 'Build your map',
+    body: 'In about 30 seconds you get an interactive knowledge graph, clusters, scored product opportunities and a research brief.' },
+]
 
 const GOALS = [
   { value: 'market', label: 'Market understanding' },
@@ -38,6 +50,21 @@ export default function HomePage() {
   const [goal, setGoal] = useState('opportunity')
   const [err, setErr] = useState('')
   const [toast, setToast] = useState('')
+  const [tourOpen, setTourOpen] = useState(false)
+
+  // First-visit tour (once); replayable via the help button.
+  useEffect(() => {
+    let done = false
+    try { done = !!localStorage.getItem(TOUR_KEY) } catch { /* ignore */ }
+    if (done) return
+    const t = setTimeout(() => setTourOpen(true), 650)
+    return () => clearTimeout(t)
+  }, [])
+
+  const closeTour = () => {
+    setTourOpen(false)
+    try { localStorage.setItem(TOUR_KEY, '1') } catch { /* ignore */ }
+  }
 
   const { data: projectsData, isLoading, isError, refetch } = useQuery({
     queryKey: ['projects'],
@@ -76,6 +103,7 @@ export default function HomePage() {
   return (
     <div className="home">
       <div className="home-topbar">
+        <HelpButton onClick={() => setTourOpen(true)} label="Take a tour" />
         <ThemeToggle />
       </div>
 
@@ -163,6 +191,7 @@ export default function HomePage() {
       </div>
 
       <Toast message={toast} onClose={() => setToast('')} />
+      <Tour steps={HOME_TOUR} open={tourOpen} onClose={closeTour} />
     </div>
   )
 }

@@ -13,6 +13,8 @@ import OpportunityBoard from '../components/OpportunityBoard'
 import AskPanel from '../components/AskPanel'
 import ThemeToggle from '../components/ThemeToggle'
 import { BuildingScreen, StateScreen, Toast } from '../components/states'
+import HelpButton from '../components/HelpButton'
+import Tour from '../components/Tour'
 import { useTheme } from '../theme'
 import { renderMarkdown, escapeHtml } from '../markdown'
 
@@ -67,6 +69,28 @@ export default function ProjectPage() {
   const [brief, setBrief] = useState(null)
   const [askResult, setAskResult] = useState(null)
   const [toast, setToast] = useState('')
+  const [tourOpen, setTourOpen] = useState(false)
+  const tourStarted = useRef(false)
+
+  const projectTour = [
+    { target: '.graph-canvas-wrap', placement: 'center', before: () => setTab('graph'),
+      title: 'Your knowledge map',
+      body: 'Each node is an entity, sized by how central it is. Drag nodes, scroll to zoom, double-click to refit — and hover any node to reveal its label and connections.' },
+    { target: '.graph-legend', placement: 'bottom', before: () => setTab('graph'),
+      title: 'Colour = type',
+      body: 'The legend maps each colour to an entity type — concepts, research papers, institutions and more.' },
+    { target: '.project-tab-bar', placement: 'bottom',
+      title: 'Four ways to read it',
+      body: 'Clusters groups related concepts, Opps surfaces scored product openings, and Ask answers plain-English questions about the domain.' },
+    { target: '.header-actions', placement: 'bottom',
+      title: 'Enrich & export',
+      body: 'Upload a PDF or CSV to fold new entities into the map, or generate a one-click research Brief you can download or print.' },
+  ]
+
+  const closeTour = () => {
+    setTourOpen(false)
+    try { localStorage.setItem('kge-tour-project', '1') } catch { /* ignore */ }
+  }
 
   // ── Brief focus management (C-3, WCAG 2.4.3, 2.1.2) ──────────────────────
   useEffect(() => {
@@ -158,6 +182,20 @@ export default function ProjectPage() {
   const { data: entityData } = useQuery({
     queryKey: ['entity', id, selectedId], queryFn: () => getEntity(id, selectedId), enabled: !!selectedId,
   })
+
+  // First-time project tour — auto-starts once the graph is on screen.
+  useEffect(() => {
+    if (tourStarted.current) return
+    const nodes = graphData?.stats?.node_count ?? 0
+    if (project?.status !== 'ready' || !graphData || nodes === 0) return
+    tourStarted.current = true
+    let done = false
+    try { done = !!localStorage.getItem('kge-tour-project') } catch { /* ignore */ }
+    if (done) return
+    setTab('graph')
+    const t = setTimeout(() => setTourOpen(true), 750)
+    return () => clearTimeout(t)
+  }, [project, graphData])
 
   // ── Graph interaction ─────────────────────────────────────────────────────
   const handleNodeClick = (nodeData) => {
@@ -332,6 +370,9 @@ export default function ProjectPage() {
                 {briefMutation.isPending ? '…' : <><BriefIcon /><span className="btn-label">Brief</span></>}
               </button>
             </>
+          )}
+          {isReady && (
+            <HelpButton className="hide-on-mobile" onClick={() => setTourOpen(true)} label="Replay the tour" />
           )}
           <ThemeToggle size="sm" />
         </div>
@@ -540,6 +581,9 @@ export default function ProjectPage() {
 
       {/* ── Toast — transient errors (replaces alert()) ── */}
       <Toast message={toast} onClose={() => setToast('')} />
+
+      {/* ── Guided tour ── */}
+      <Tour steps={projectTour} open={tourOpen} onClose={closeTour} />
     </div>
   )
 }

@@ -1292,6 +1292,84 @@ button { cursor: pointer; font-family: inherit; font-size: var(--text-base); col
 .brief-rendered td { color: var(--text-muted); }
 
 /* ════════════════════════════════════════════════════════════
+   GUIDED TOUR
+════════════════════════════════════════════════════════════ */
+.tour { position: fixed; inset: 0; z-index: 1000; }
+
+/* Transparent layer that blocks interaction with the app behind the tour */
+.tour-guard { position: fixed; inset: 0; z-index: 1000; }
+
+/* Full dim for steps with no specific target (centred card) */
+.tour-dim {
+  position: fixed; inset: 0;
+  background: var(--scrim);
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+/* Spotlight cut-out: the huge box-shadow dims everything except this rect */
+.tour-spotlight {
+  position: fixed;
+  z-index: 1001;
+  pointer-events: none;
+  border-radius: var(--radius);
+  box-shadow: 0 0 0 9999px var(--scrim);
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+  transition: top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease;
+}
+
+.tour-card {
+  position: fixed;
+  z-index: 1002;
+  width: min(300px, calc(100vw - 24px));
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: var(--sp-4) var(--sp-5) var(--sp-5);
+  animation: tourPop 0.18s ease;
+}
+@keyframes tourPop { from { opacity: 0; } to { opacity: 1; } }
+
+.tour--still .tour-card,
+.tour--still .tour-dim { animation: none; }
+.tour--still .tour-spotlight { transition: none; }
+
+.tour-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-2);
+}
+.tour-count {
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.tour-skip {
+  background: none; border: none;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  padding: var(--sp-1);
+}
+.tour-skip:hover { color: var(--text); }
+.tour-title {
+  font-size: var(--text-lg);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-tight);
+  line-height: var(--lh-snug);
+  margin-bottom: var(--sp-2);
+}
+.tour-body { font-size: var(--text-sm); color: var(--text-muted); line-height: var(--lh-relaxed); }
+.tour-dots { display: flex; gap: var(--sp-1); margin: var(--sp-4) 0 var(--sp-3); }
+.tour-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--surface-3); transition: background var(--ease-base); }
+.tour-dot.is-active { background: var(--accent-bright); }
+.tour-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+
+/* ════════════════════════════════════════════════════════════
    MOBILE  ≤ 767px
 ════════════════════════════════════════════════════════════ */
 @media (max-width: 767px) {
@@ -1309,6 +1387,8 @@ button { cursor: pointer; font-family: inherit; font-size: var(--text-base); col
   /* Icon-only Upload / Brief on phones so the project title keeps its room */
   .header-actions .btn-sm .btn-label { display: none; }
   .header-actions .btn-sm { padding: var(--sp-2); }
+  /* Keep the crowded mobile header lean — the tour still auto-runs once */
+  .hide-on-mobile { display: none; }
 
   .project-tab-bar { padding: var(--sp-1) var(--sp-2); gap: 0; }
   .tab-btn { flex: 1; justify-content: center; padding: var(--sp-2) var(--sp-1); font-size: var(--text-xs); gap: var(--sp-1); }
