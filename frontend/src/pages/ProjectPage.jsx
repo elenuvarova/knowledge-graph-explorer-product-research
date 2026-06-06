@@ -372,7 +372,7 @@ export default function ProjectPage() {
             </>
           )}
           {isReady && (
-            <HelpButton className="hide-on-mobile" onClick={() => setTourOpen(true)} label="Replay the tour" />
+            <HelpButton size="sm" className="hide-on-mobile" onClick={() => setTourOpen(true)} label="Replay the tour" />
           )}
           <ThemeToggle size="sm" />
         </div>

@@ -237,6 +237,7 @@ button { cursor: pointer; font-family: inherit; font-size: var(--text-base); col
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: var(--sp-2);
   height: 48px;
   flex-shrink: 0;
 }

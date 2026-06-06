@@ -1,9 +1,11 @@
 // Small "?" icon button that (re)launches the guided tour.
-export default function HelpButton({ onClick, label = 'Take a tour', className = '' }) {
+// `size="sm"` matches the compact project-header controls; default matches the
+// 36px home-topbar theme toggle.
+export default function HelpButton({ onClick, label = 'Take a tour', className = '', size }) {
   return (
     <button
       type="button"
-      className={`icon-btn icon-btn-sm ${className}`.trim()}
+      className={`icon-btn${size === 'sm' ? ' icon-btn-sm' : ''} ${className}`.trim()}
       onClick={onClick}
       aria-label={label}
       title={label}
