@@ -22,14 +22,15 @@ app = FastAPI(title="Knowledge Graph Explorer", lifespan=lifespan)
 # The app serves its own SPA + API from one origin behind an HTTPS proxy, so
 # set a conservative baseline on every response. The CSP allows inline scripts
 # (the pre-paint theme switcher in index.html) and inline styles (React
-# style={{…}}), and blob: workers for the cola graph layout.
+# style={{…}}), blob: workers for the cola graph layout, and the self-hosted
+# Umami analytics script + its event endpoint on stats.ontwrpn.com.
 _CSP = (
     "default-src 'self'; "
-    "script-src 'self' 'unsafe-inline'; "
+    "script-src 'self' 'unsafe-inline' https://stats.ontwrpn.com; "
     "style-src 'self' 'unsafe-inline'; "
     "img-src 'self' data:; "
     "font-src 'self'; "
-    "connect-src 'self'; "
+    "connect-src 'self' https://stats.ontwrpn.com; "
     "worker-src 'self' blob:; "
     "object-src 'none'; "
     "base-uri 'self'; "
