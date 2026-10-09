@@ -142,7 +142,7 @@ export default function HomePage() {
 
         <InlineError message={err} onDismiss={() => setErr('')} />
 
-        <button className="btn btn-primary btn-full" type="submit" disabled={busy}>
+        <button className="btn btn-primary btn-full" type="submit" disabled={busy} data-umami-event="build-map">
           {busy ? <><span className="spinner spinner-sm" />Building map…</> : 'Build knowledge map →'}
         </button>
       </form>
